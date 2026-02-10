@@ -1,15 +1,26 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="소재 규격 검색기", layout="centered")
-st.title("🏭 소재 규격 정밀 검색")
+# 앱 설정: 모바일에서 크게 보이도록 세팅
+st.set_page_config(page_title="현장용 강종 검색기", layout="centered")
+
+# CSS를 이용해 표의 글자 크기를 키우고 가독성을 높임
+st.markdown("""
+    <style>
+    .main { background-color: #ffffff; }
+    div[data-testid="stExpander"] { border: none; }
+    .stDataFrame { font-size: 18px !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("📸 규격 조회 (캡처용)")
 
 @st.cache_data
 def load_data():
     try:
-        # 엑셀 파일 로드 (파일명 확인 필수)
+        # data.xlsx 파일을 읽어옵니다
         df = pd.read_excel("data.xlsx")
-        # '두께(T)' 컬럼을 숫자형으로 변환하여 검색 정확도 높임
+        # '두께(T)' 컬럼을 숫자형으로 변환합니다
         df['두께(T)'] = pd.to_numeric(df['두께(T)'], errors='coerce')
         return df
     except:
@@ -18,36 +29,36 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # --- 입력창 구성 (강종명과 두께를 나란히 또는 위아래로 배치) ---
-    st.subheader("🔍 검색 조건을 입력하세요")
-    
-    target_name = st.text_input("1️⃣ 강종명 (예: SPFH590)").strip()
-    
-    # 두께 입력창: 숫자만 입력 가능하도록 설정 (value=0.0은 초기값)
-    target_t = st.text_input("2️⃣ 두께(T) 입력 (예: 1.8)").strip()
+    # 입력창을 상단에 배치
+    col1, col2 = st.columns(2)
+    with col1:
+        name_in = st.text_input("강종명", placeholder="SPFH590").strip()
+    with col2:
+        thick_in = st.text_input("두께(T)", placeholder="1.8").strip()
 
-    # --- 필터링 로직 ---
-    # 기본 데이터 복사
-    filtered_df = df.copy()
-
-    # 1. 강종명 필터링 (입력값이 있을 때만 실행)
-    if target_name:
-        filtered_df = filtered_df[filtered_df['소재명'].str.contains(target_name, case=False, na=False)]
-    
-    # 2. 두께 필터링 (입력값이 있을 때만 실행)
-    if target_t:
+    # 검색 로직 수행
+    res = df.copy()
+    if name_in:
+        res = res[res['소재명'].str.contains(name_in, case=False, na=False)]
+    if thick_in:
         try:
-            t_value = float(target_t)
-            filtered_df = filtered_df[filtered_df['두께(T)'] == t_value]
-        except ValueError:
-            st.error("두께는 숫자만 입력해 주세요. (예: 1.8)")
+            val = float(thick_in)
+            res = res[res['두께(T)'] == val]
+        except:
+            st.error("숫자만!")
 
-    # --- 결과 출력 ---
     st.divider()
-    if not filtered_df.empty:
-        st.success(f"검색 결과: {len(filtered_df)}건")
-        st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+
+    if not res.empty:
+        # 결과 요약 표시
+        st.subheader(f"✅ 검색 결과: {len(res)}건")
+        
+        # 표를 고정된 형태(Static Table)로 출력하여 스크린샷 찍기 좋게 만듦
+        # 일반 dataframe보다 table 형태가 사진으로 찍었을 때 더 깔끔합니다.
+        st.table(res)
+        
+        st.caption("위 화면을 스크린샷(캡처)해서 카톡으로 전송하세요!")
     else:
-        st.warning("일치하는 소재 데이터가 없습니다. 입력값을 확인해 주세요.")
+        st.info("조건에 맞는 소재가 없습니다.")
 else:
-    st.error("데이터 파일(data.xlsx)을 찾을 수 없습니다.")
+    st.error("data.xlsx 파일을 찾을 수 없습니다.")
