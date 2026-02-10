@@ -1,9 +1,15 @@
 import streamlit as st
 import pandas as pd
 import os
+from PIL import Image
 
-# 1. 앱 페이지 설정 (모바일 최적화)
-st.set_page_config(page_title="전우정밀 원소재 정보 시스템", layout="centered")
+# 1. 앱 페이지 및 아이콘(파비콘) 설정
+# 저장소에 있는 logo.png를 앱의 아이콘으로 사용합니다.
+try:
+    favicon = Image.open("logo.png")
+    st.set_page_config(page_title="전우정밀 원소재 정보 시스템", page_icon=favicon, layout="centered")
+except:
+    st.set_page_config(page_title="전우정밀 원소재 정보 시스템", layout="centered")
 
 # 2. CSS 최적화: 모바일 가독성 및 표 잘림 방지
 st.markdown("""
@@ -15,7 +21,6 @@ st.markdown("""
     th { background-color: #f8f9fa !important; text-align: center !important; padding: 4px !important; }
     td { text-align: center !important; padding: 4px !important; }
     div[data-testid="stTable"] { overflow-x: auto; }
-    .stCheckbox { margin-bottom: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -23,16 +28,16 @@ st.markdown("""
 h_col1, h_col2 = st.columns([1, 4])
 with h_col1:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=70)
+        st.image("logo.png", width=70) #
 with h_col2:
-    st.markdown('<p class="company-name" style="margin-top:10px;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
+    st.markdown('<p class="company-name" style="margin-top:10px;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True) #
 
-st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=True) #
 
 # 4. 데이터 로드 함수
 @st.cache_data(ttl=600)
 def load_data():
-    file_name = "data.xlsx"
+    file_name = "data.xlsx" #
     if os.path.exists(file_name):
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
@@ -41,8 +46,7 @@ def load_data():
                     # 소수점이 0이면 정수로, 아니면 소수점 첫째자리까지 표시
                     df[col] = df[col].apply(lambda x: int(x) if pd.notnull(x) and x == int(x) else round(x, 1))
             return df
-        except:
-            return None
+        except: return None
     return None
 
 df = load_data()
@@ -50,12 +54,10 @@ df = load_data()
 if df is not None:
     # 5. 입력 및 설정 영역
     c1, c2 = st.columns(2)
-    with c1:
-        name_in = st.text_input("강종명", placeholder="SPFH590").strip()
-    with c2:
-        thick_in = st.text_input("두께(T)", placeholder="1.8").strip()
+    with c1: name_in = st.text_input("강종명", placeholder="SPFH590").strip() #
+    with c2: thick_in = st.text_input("두께(T)", placeholder="1.8").strip() #
 
-    # 기타 정보 표시 여부 체크박스 (기본값은 표시)
+    # 기타 정보 표시 여부 체크박스
     show_extra = st.checkbox("📋 기타 정보 및 사양 표시", value=True)
 
     # 6. 필터링 및 컬럼 제어
@@ -66,10 +68,9 @@ if df is not None:
         try:
             val = float(thick_in)
             res = res[res['두께(T)'].astype(float) == val]
-        except:
-            pass
+        except: pass
 
-    # 체크박스 해제 시 해당 열 삭제 (표를 날씬하게 만듦)
+    # 체크박스 해제 시 해당 열 삭제
     if not show_extra and '기타 정보 및 사양' in res.columns:
         res = res.drop(columns=['기타 정보 및 사양'])
 
@@ -83,9 +84,9 @@ if df is not None:
         res_display = res.reset_index(drop=True)
         res_display.index = res_display.index + 1
         
-        # 표 출력 (문자열 변환으로 .0 방지 및 오류 수정)
+        # 표 출력
         st.table(res_display.astype(str).replace('nan', '-'))
-        st.caption("© Jeon Woo Precision Co., LTD. All rights reserved.")
+        st.caption("© Jeon Woo Precision Co., LTD. All rights reserved.") #
     else:
         st.warning("조건에 맞는 정보가 없습니다.")
 else:
