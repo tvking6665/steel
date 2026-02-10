@@ -10,9 +10,10 @@ try:
 except:
     st.set_page_config(page_title="전우정밀 원소재 정보 시스템", layout="centered")
 
-# 2. CSS 최적화: 모바일 가독성 및 버튼 디자인 설정
+# 2. CSS 최적화: 모바일 가독성 및 디자인 설정
+# 따옴표 무결성을 위해 형식을 정리했습니다.
 st.markdown("""
-    <style>
+<style>
     .main .block-container { padding: 1rem 0.5rem; }
     .company-name { font-size: 16px; font-weight: bold; color: #0047AB; margin-bottom: 2px; }
     .app-title { font-size: 26px; font-weight: 800; margin-top: 0px; margin-bottom: 10px; }
@@ -20,7 +21,6 @@ st.markdown("""
     th { background-color: #f8f9fa !important; text-align: center !important; padding: 4px !important; }
     td { text-align: center !important; padding: 4px !important; }
     div[data-testid="stTable"] { overflow-x: auto; }
-    /* MES 버튼 스타일 */
     .mes-button {
         display: inline-block;
         padding: 0.5em 1em;
@@ -33,17 +33,16 @@ st.markdown("""
         margin-bottom: 15px;
         text-align: center;
     }
-    </style>
-    """, unsafe_allow_html=True)
+</style>
+""", unsafe_allow_html=True)
 
-# 3. 상단 헤더 및 수정된 MES 버튼 배치
+# 3. 상단 헤더 및 MES 버튼 배치
 h_col1, h_col2 = st.columns([1, 4])
 with h_col1:
     if os.path.exists("logo.png"):
         st.image("logo.png", width=70)
 with h_col2:
     st.markdown('<p class="company-name" style="margin-top:10px;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
-    # 알려주신 정확한 주소로 연결
     st.markdown('<a href="http://mes.jwjm.com/bang.asp" target="_blank" class="mes-button">📊 실시간 가동 현황판 보기</a>', unsafe_allow_html=True)
 
 st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=True)
@@ -57,6 +56,7 @@ def load_data():
             df = pd.read_excel(file_name, engine='openpyxl')
             for col in df.columns:
                 if pd.api.types.is_numeric_dtype(df[col]):
+                    # 소수점 정리 규칙 (272.0 -> 272)
                     df[col] = df[col].apply(lambda x: int(x) if pd.notnull(x) and x == int(x) else round(x, 1))
             return df
         except:
