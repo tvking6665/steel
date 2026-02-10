@@ -21,54 +21,59 @@ h_col1, h_col2 = st.columns([1, 4])
 with h_col1:
     if os.path.exists("logo.png"):
         st.image("logo.png", width=100)
-    else:
-        st.write("⚠️ 로고 확인")
 with h_col2:
     st.markdown('<p class="company-name" style="margin-top:20px;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
 
 st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=True)
 
+# 데이터 로드 함수 (경로 인식 개선)
 @st.cache_data
 def load_data():
-    try:
-        df = pd.read_excel("data.xlsx")
-        # 숫자 데이터를 깔끔하게 정리 (272.0 -> 272, 1.300 -> 1.3)
-        for col in df.columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
-                # 소수점 이하가 0이면 정수로, 아니면 소수점 첫째자리까지
-                df[col] = df[col].apply(lambda x: int(x) if x == int(x) else round(x, 1))
-        return df
-    except:
+    file_name = "data.xlsx"
+    if os.path.exists(file_name):
+        try:
+            df = pd.read_excel(file_name, engine='openpyxl')
+            # 숫자 데이터 정리 (272.0 -> 272)
+            for col in df.columns:
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    df[col] = df[col].apply(lambda x: int(x) if pd.notnull(x) and x == int(x) else round(x, 1))
+            return df
+        except Exception as e:
+            st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
+            return None
+    else:
         return None
 
 df = load_data()
 
 if df is not None:
+    # 검색 입력창
     c1, c2 = st.columns(2)
     with c1:
         name_in = st.text_input("강종명", placeholder="예: SPFH590").strip()
     with c2:
         thick_in = st.text_input("두께(T)", placeholder="예: 1.3").strip()
 
+    # 필터링 로직
     res = df.copy()
     if name_in:
         res = res[res['소재명'].str.contains(name_in, case=False, na=False)]
     if thick_in:
         try:
             val = float(thick_in)
-            # 입력값과 비교할 때도 유연하게 처리
             res = res[res['두께(T)'].astype(float) == val]
         except:
-            st.error("숫자만 입력해 주세요.")
+            pass
 
     st.divider()
 
     if not res.empty:
         st.subheader(f"✅ 검색 결과: {len(res)}건")
-        # 데이터를 문자열로 변환하여 .0 방지
-        st.table(res.astype(str))
+        # 데이터 출력 (소수점 없는 깔끔한 상태 유지)
+        st.table(res.astype(str).replace('nan', '-'))
         st.caption("© Jeon Woo Precision Co., LTD. All rights reserved.")
     else:
-        st.info("조건에 일치하는 정보가 없습니다.")
+        st.info("검색 조건에 맞는 원소재 정보가 없습니다.")
 else:
-    st.error("data.xlsx 파일을 찾을 수 없습니다.")
+    # 파일이 없을 때 메시지
+    st.error("⚠️ 'data.xlsx' 파일을 찾을 수 없습니다. GitHub 저장소에 파일이 있는지 확인해 주세요.")
