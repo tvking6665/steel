@@ -7,8 +7,9 @@ st.title("🏭 소재 규격 정밀 검색")
 @st.cache_data
 def load_data():
     try:
+        # 엑셀 파일 로드 (파일명 확인 필수)
         df = pd.read_excel("data.xlsx")
-        # '두께(T)' 컬럼을 숫자 형식으로 변환 (숫자가 아니면 에러 방지)
+        # '두께(T)' 컬럼을 숫자형으로 변환하여 검색 정확도 높임
         df['두께(T)'] = pd.to_numeric(df['두께(T)'], errors='coerce')
         return df
     except:
@@ -17,20 +18,29 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # --- 검색창 디자인 ---
-    target_name = st.text_input("🔍 강종명을 입력하세요 (예: SPFH590)").strip()
+    # --- 입력창 구성 (강종명과 두께를 나란히 또는 위아래로 배치) ---
+    st.subheader("🔍 검색 조건을 입력하세요")
     
-    # 두께 필터 (슬라이더)
-    min_t = float(df['두께(T)'].min())
-    max_t = float(df['두께(T)'].max())
-    t_range = st.slider("📏 두께(T) 범위를 선택하세요", min_t, max_t, (min_t, max_t), step=0.1)
+    target_name = st.text_input("1️⃣ 강종명 (예: SPFH590)").strip()
+    
+    # 두께 입력창: 숫자만 입력 가능하도록 설정 (value=0.0은 초기값)
+    target_t = st.text_input("2️⃣ 두께(T) 입력 (예: 1.8)").strip()
 
     # --- 필터링 로직 ---
-    # 1. 강종명 검색
-    filtered_df = df[df['소재명'].str.contains(target_name, case=False, na=False)]
+    # 기본 데이터 복사
+    filtered_df = df.copy()
+
+    # 1. 강종명 필터링 (입력값이 있을 때만 실행)
+    if target_name:
+        filtered_df = filtered_df[filtered_df['소재명'].str.contains(target_name, case=False, na=False)]
     
-    # 2. 선택한 두께 범위 내의 데이터만 추출
-    filtered_df = filtered_df[(filtered_df['두께(T)'] >= t_range[0]) & (filtered_df['두께(T)'] <= t_range[1])]
+    # 2. 두께 필터링 (입력값이 있을 때만 실행)
+    if target_t:
+        try:
+            t_value = float(target_t)
+            filtered_df = filtered_df[filtered_df['두께(T)'] == t_value]
+        except ValueError:
+            st.error("두께는 숫자만 입력해 주세요. (예: 1.8)")
 
     # --- 결과 출력 ---
     st.divider()
@@ -38,4 +48,6 @@ if df is not None:
         st.success(f"검색 결과: {len(filtered_df)}건")
         st.dataframe(filtered_df, use_container_width=True, hide_index=True)
     else:
-        st.warning("조건에 맞는 데이터가 없습니다.")
+        st.warning("일치하는 소재 데이터가 없습니다. 입력값을 확인해 주세요.")
+else:
+    st.error("데이터 파일(data.xlsx)을 찾을 수 없습니다.")
