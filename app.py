@@ -11,7 +11,6 @@ except:
     st.set_page_config(page_title="전우정밀 원소재 정보 시스템", layout="centered")
 
 # 2. CSS 최적화: 모바일 가독성 및 디자인 설정
-# 따옴표 무결성을 위해 형식을 정리했습니다.
 st.markdown("""
 <style>
     .main .block-container { padding: 1rem 0.5rem; }
@@ -21,6 +20,8 @@ st.markdown("""
     th { background-color: #f8f9fa !important; text-align: center !important; padding: 4px !important; }
     td { text-align: center !important; padding: 4px !important; }
     div[data-testid="stTable"] { overflow-x: auto; }
+    
+    /* MES 버튼 스타일 */
     .mes-button {
         display: inline-block;
         padding: 0.5em 1em;
@@ -32,6 +33,18 @@ st.markdown("""
         font-size: 14px;
         margin-bottom: 15px;
         text-align: center;
+    }
+
+    /* ✅ 검색 결과 박스 (다크/라이트 모드 자동 대응) */
+    .search-result-box {
+        background-color: rgba(28, 131, 225, 0.15); /* 투명도 있는 파란 배경 */
+        border-left: 5px solid #1c83e1;             /* 왼쪽 강조선 */
+        padding: 12px 15px;
+        border-radius: 8px;
+        margin: 15px 0px;
+        color: var(--text-color);                   /* 시스템 테마에 따른 자동 글자색 */
+        font-weight: bold;
+        font-size: 16px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -50,17 +63,14 @@ st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=Tru
 # 4. 데이터 로드 함수
 @st.cache_data(ttl=600)
 def load_data():
-    file_name = "data.xlsx"  # 파일명이 'data.xlsx'인지 꼭 확인하세요!
+    file_name = "data.xlsx"  
     if os.path.exists(file_name):
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             for col in df.columns:
-                # '제품 단중' 컬럼은 소수점 처리를 하지 않고 그대로 둡니다.
                 if col == '제품 단중':
                     continue
-                
                 if pd.api.types.is_numeric_dtype(df[col]):
-                    # 다른 숫자 컬럼들은 소수점 정리 (예: 272.0 -> 272)
                     df[col] = df[col].apply(lambda x: int(x) if pd.notnull(x) and x == int(x) else round(x, 1))
             return df
         except:
@@ -98,7 +108,9 @@ if df is not None:
 
     # 7. 결과 출력
     if not res.empty:
-        st.info(f"✅ 검색 결과: {len(res)}건")
+        # ✅ st.info 대신 커스텀 스타일 박스 적용
+        st.markdown(f'<div class="search-result-box">✅ 검색 결과: {len(res)}건</div>', unsafe_allow_html=True)
+        
         res_display = res.reset_index(drop=True)
         res_display.index = res_display.index + 1
         st.table(res_display.astype(str).replace('nan', '-'))
