@@ -59,7 +59,7 @@ with h_col2:
 
 st.markdown('<h1 class="app-title">원소재 정보 시스템</h1>', unsafe_allow_html=True)
 
-# 4. 데이터 로드
+# 4. 데이터 로드 및 전처리
 @st.cache_data(ttl=600)
 def load_data():
     file_name = "data.xlsx"
@@ -67,6 +67,9 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
+            # 고객사 컬럼이 비어있으면 '미지정'으로 채움
+            if '고객사' in df.columns:
+                df['고객사'] = df['고객사'].fillna('미지정')
             return df
         except: return None
     return None
@@ -79,22 +82,37 @@ def get_val(row, cols):
     return "-"
 
 if df is not None:
-    # 5. 입력 영역
-    st.write("🔍 **소재 검색 및 생산 조건 입력**")
+    # --- 5. 필터링 입력 영역 ---
+    st.write("🔍 **소재 검색 및 조건 설정**")
+    
+    # ✅ 고객사 선택 드롭박스 추가
+    if '고객사' in df.columns:
+        customer_list = ['전체'] + sorted(df['고객사'].unique().tolist())
+        selected_customer = st.selectbox("🤝 고객사 선택", options=customer_list)
+    else:
+        selected_customer = '전체'
+        st.info("💡 엑셀에 '고객사' 컬럼을 추가하시면 업체별 조회가 가능합니다.")
+
     c1, c2 = st.columns(2)
     with c1:
-        name_in = st.text_input("강종명", placeholder="전체 검색 시 공백").strip()
+        name_in = st.text_input("강종명 검색", placeholder="예: SPFH590").strip()
     with c2:
-        thick_in = st.text_input("두께", placeholder="예: 1.8").strip()
+        thick_in = st.text_input("두께 검색", placeholder="예: 1.8").strip()
     
     c3, c4 = st.columns(2)
     with c3:
         qty_in = st.number_input("생산 예상 수량 (EA)", min_value=0, value=0, step=1000)
     with c4:
-        # ✅ Loss율 기본값 설정
         loss_rate = st.number_input("Loss율 (%)", min_value=0.0, max_value=50.0, value=3.0, step=0.5)
 
+    # 6. 필터링 로직 수행
     res = df.copy()
+    
+    # 고객사 필터 적용
+    if selected_customer != '전체':
+        res = res[res['고객사'] == selected_customer]
+    
+    # 기존 검색 필터 적용
     if name_in:
         res = res[res['소재명'].astype(str).str.contains(name_in, case=False, na=False)]
     if thick_in:
@@ -104,6 +122,7 @@ if df is not None:
 
     st.divider()
 
+    # 7. 결과 출력
     if not res.empty:
         calc_ready = res.dropna(subset=['제품 단중']).copy()
         st.markdown(f'<div class="search-result-box">✅ 조회 결과: {len(res)}건</div>', unsafe_allow_html=True)
@@ -113,34 +132,32 @@ if df is not None:
                 t = get_val(x, ['두께','두께(T)','T'])
                 w = get_val(x, ['폭','폭(W)','W','소재폭'])
                 extra = get_val(x, ['기타 정보 및 사양', '기타정보', '비고'])
-                return f"{x['소재명']} (두께:{t} / 폭:{w} / 단중:{x['제품 단중']}) - {extra}"
+                cust = get_val(x, ['고객사'])
+                return f"[{cust}] {x['소재명']} (두께:{t} / 폭:{w} / 단중:{x['제품 단중']}) - {extra}"
 
             calc_ready['label'] = calc_ready.apply(make_label, axis=1)
             selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
             selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             
-            # 7. 적용 버튼 및 소요량 계산
             if st.button("✅ 설정 내용 적용"):
                 if qty_in > 0:
-                    net_unit_w = float(selected_row['제품 단중'])
-                    
-                    # 💡 Net 중량 (순수 제품 무게)
-                    total_net_kg = net_unit_w * qty_in
-                    
-                    # 💡 Gross 중량 (Loss 반영 구매 무게)
+                    unit_w = float(selected_row['제품 단중'])
+                    total_net_kg = unit_w * qty_in
                     total_gross_kg = total_net_kg * (1 + (loss_rate / 100))
                     total_gross_ton = total_gross_kg / 1000
                     
                     final_t = get_val(selected_row, ['두께','두께(T)','T'])
                     final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
                     final_extra = get_val(selected_row, ['기타 정보 및 사양', '기타정보', '비고'])
+                    final_cust = get_val(selected_row, ['고객사'])
                     
                     st.markdown(f"""
                     <div class="calc-box">
                         📋 최종 적용 요약 (Loss {loss_rate}% 반영)<br>
+                        - **고객사: {final_cust}**<br>
                         - 규격: {selected_row['소재명']}<br>
                         - 두께: {final_t} / 폭: {final_w}<br>
-                        - 제품 단중(Net): {net_unit_w} kg<br>
+                        - 제품 단중(Net): {unit_w} kg<br>
                         - 프로젝트명: {final_extra}<br>
                         - 생산 예상 수량: {qty_in:,} EA<br><br>
                         - 📦 순수 소요량(Net): {total_net_kg:,.0f} kg<br>
