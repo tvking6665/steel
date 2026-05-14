@@ -50,13 +50,17 @@ st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=Tru
 # 4. 데이터 로드 함수
 @st.cache_data(ttl=600)
 def load_data():
-    file_name = "data.xlsx"
+    file_name = "데이터.xlsx"  # 파일명이 '데이터.xlsx'인지 꼭 확인하세요!
     if os.path.exists(file_name):
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             for col in df.columns:
+                # '제품 단중' 컬럼은 소수점 처리를 하지 않고 그대로 둡니다.
+                if col == '제품 단중':
+                    continue
+                
                 if pd.api.types.is_numeric_dtype(df[col]):
-                    # 소수점 정리 규칙 (272.0 -> 272)
+                    # 다른 숫자 컬럼들은 소수점 정리 (예: 272.0 -> 272)
                     df[col] = df[col].apply(lambda x: int(x) if pd.notnull(x) and x == int(x) else round(x, 1))
             return df
         except:
