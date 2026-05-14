@@ -73,7 +73,6 @@ def load_data():
 
 df = load_data()
 
-# 정보 추출용 헬퍼 함수
 def get_val(row, cols):
     for c in cols:
         if c in row.index and pd.notnull(row[c]): return row[c]
@@ -88,15 +87,13 @@ if df is not None:
     with c2:
         thick_in = st.text_input("두께", placeholder="예: 1.8").strip()
     
-    # 수량 및 로스율 입력
     c3, c4 = st.columns(2)
     with c3:
         qty_in = st.number_input("생산 예상 수량 (EA)", min_value=0, value=0, step=1000)
     with c4:
-        # ✅ 기본 로스율을 3%로 설정 (현장 상황에 맞게 조절 가능)
-        loss_rate = st.number_input("로스율 (%)", min_value=0.0, max_value=50.0, value=3.0, step=0.5)
+        # ✅ Loss율 기본값 설정
+        loss_rate = st.number_input("Loss율 (%)", min_value=0.0, max_value=50.0, value=3.0, step=0.5)
 
-    # 필터링 로직
     res = df.copy()
     if name_in:
         res = res[res['소재명'].astype(str).str.contains(name_in, case=False, na=False)]
@@ -107,7 +104,6 @@ if df is not None:
 
     st.divider()
 
-    # 6. 결과 출력
     if not res.empty:
         calc_ready = res.dropna(subset=['제품 단중']).copy()
         st.markdown(f'<div class="search-result-box">✅ 조회 결과: {len(res)}건</div>', unsafe_allow_html=True)
@@ -120,19 +116,20 @@ if df is not None:
                 return f"{x['소재명']} (두께:{t} / 폭:{w} / 단중:{x['제품 단중']}) - {extra}"
 
             calc_ready['label'] = calc_ready.apply(make_label, axis=1)
-            
             selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
             selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             
-            # 7. 적용 버튼 및 소요량 계산 (로스율 반영)
+            # 7. 적용 버튼 및 소요량 계산
             if st.button("✅ 설정 내용 적용"):
                 if qty_in > 0:
-                    unit_w = float(selected_row['제품 단중'])
+                    net_unit_w = float(selected_row['제품 단중'])
                     
-                    # ✅ 로스율 계산 적용
-                    # 공식: (단중 * 수량) * (1 + 로스율/100)
-                    total_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
-                    total_ton = total_kg / 1000
+                    # 💡 Net 중량 (순수 제품 무게)
+                    total_net_kg = net_unit_w * qty_in
+                    
+                    # 💡 Gross 중량 (Loss 반영 구매 무게)
+                    total_gross_kg = total_net_kg * (1 + (loss_rate / 100))
+                    total_gross_ton = total_gross_kg / 1000
                     
                     final_t = get_val(selected_row, ['두께','두께(T)','T'])
                     final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
@@ -140,13 +137,14 @@ if df is not None:
                     
                     st.markdown(f"""
                     <div class="calc-box">
-                        📋 최종 적용 요약 (로스율 {loss_rate}% 반영)<br>
+                        📋 최종 적용 요약 (Loss {loss_rate}% 반영)<br>
                         - 규격: {selected_row['소재명']}<br>
                         - 두께: {final_t} / 폭: {final_w}<br>
-                        - 단중: {unit_w} kg<br>
+                        - 제품 단중(Net): {net_unit_w} kg<br>
                         - 프로젝트명: {final_extra}<br>
-                        - 생산 예상 수량: {qty_in:,} EA<br>
-                        - 📦 총 구매 예정량: {total_kg:,.0f} kg ({total_ton:,.1f} ton)
+                        - 생산 예상 수량: {qty_in:,} EA<br><br>
+                        - 📦 순수 소요량(Net): {total_net_kg:,.0f} kg<br>
+                        - 🚚 **총 구매 예정량(Gross): {total_gross_kg:,.0f} kg ({total_gross_ton:,.1f} ton)**
                     </div>
                     """, unsafe_allow_html=True)
                 else:
