@@ -114,24 +114,25 @@ if df is not None:
             selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
             selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             
-            # 7. 소요량 계산 적용 버튼
-            if st.button("✅ 소요량 계산 결과 적용"):
+            # 7. 적용 버튼 및 소요량 계산
+            if st.button("✅ 설정 내용 적용"):
                 if qty_in > 0:
                     unit_w = float(selected_row['제품 단중'])
-                    total_w = unit_w * qty_in
+                    total_kg = unit_w * qty_in
+                    # ✅ ton 단위 환산 (1,000kg = 1ton)
+                    total_ton = total_kg / 1000
                     
-                    # 두께와 폭 정보를 가져오기
                     final_t = get_val(selected_row, ['두께','두께(T)','T'])
                     final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
                     
-                    # ✅ 요약 박스에 두께와 폭 추가 표시
+                    # ✅ 문구 변경: 구매 예정량 / 단위: kg 및 ton 동시 표시
                     st.markdown(f"""
                     <div class="calc-box">
                         📋 최종 적용 요약<br>
                         - 규격: {selected_row['소재명']}<br>
                         - 두께(T): {final_t} / 폭(W): {final_w}<br>
                         - 단중: {unit_w} kg/EA<br>
-                        - 📦 총 소요 예정량: {total_w:,.0f} kg
+                        - 📦 총 구매 예정량: {total_kg:,.0f} kg ({total_ton:,.1f} ton)
                     </div>
                     """, unsafe_allow_html=True)
                 else:
