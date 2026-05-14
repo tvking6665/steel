@@ -81,14 +81,20 @@ def get_val(row, cols):
 
 if df is not None:
     # 5. 입력 영역
-    st.write("🔍 **소재 검색 및 수량 입력**")
+    st.write("🔍 **소재 검색 및 생산 조건 입력**")
     c1, c2 = st.columns(2)
     with c1:
         name_in = st.text_input("강종명", placeholder="전체 검색 시 공백").strip()
     with c2:
         thick_in = st.text_input("두께", placeholder="예: 1.8").strip()
     
-    qty_in = st.number_input("생산 예상 수량 (EA)", min_value=0, value=0, step=1000)
+    # 수량 및 로스율 입력
+    c3, c4 = st.columns(2)
+    with c3:
+        qty_in = st.number_input("생산 예상 수량 (EA)", min_value=0, value=0, step=1000)
+    with c4:
+        # ✅ 기본 로스율을 3%로 설정 (현장 상황에 맞게 조절 가능)
+        loss_rate = st.number_input("로스율 (%)", min_value=0.0, max_value=50.0, value=3.0, step=0.5)
 
     # 필터링 로직
     res = df.copy()
@@ -107,7 +113,6 @@ if df is not None:
         st.markdown(f'<div class="search-result-box">✅ 조회 결과: {len(res)}건</div>', unsafe_allow_html=True)
         
         if not calc_ready.empty:
-            # ✅ 드롭다운 라벨 한글화 (T: -> 두께:, W: -> 폭:)
             def make_label(x):
                 t = get_val(x, ['두께','두께(T)','T'])
                 w = get_val(x, ['폭','폭(W)','W','소재폭'])
@@ -119,11 +124,14 @@ if df is not None:
             selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
             selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             
-            # 7. 적용 버튼 및 소요량 계산
+            # 7. 적용 버튼 및 소요량 계산 (로스율 반영)
             if st.button("✅ 설정 내용 적용"):
                 if qty_in > 0:
                     unit_w = float(selected_row['제품 단중'])
-                    total_kg = unit_w * qty_in
+                    
+                    # ✅ 로스율 계산 적용
+                    # 공식: (단중 * 수량) * (1 + 로스율/100)
+                    total_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
                     total_ton = total_kg / 1000
                     
                     final_t = get_val(selected_row, ['두께','두께(T)','T'])
@@ -132,7 +140,7 @@ if df is not None:
                     
                     st.markdown(f"""
                     <div class="calc-box">
-                        📋 최종 적용 요약<br>
+                        📋 최종 적용 요약 (로스율 {loss_rate}% 반영)<br>
                         - 규격: {selected_row['소재명']}<br>
                         - 두께: {final_t} / 폭: {final_w}<br>
                         - 단중: {unit_w} kg<br>
