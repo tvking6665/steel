@@ -119,19 +119,19 @@ if df is not None:
                 if qty_in > 0:
                     unit_w = float(selected_row['제품 단중'])
                     total_kg = unit_w * qty_in
-                    # ✅ ton 단위 환산 (1,000kg = 1ton)
                     total_ton = total_kg / 1000
                     
                     final_t = get_val(selected_row, ['두께','두께(T)','T'])
                     final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
                     
-                    # ✅ 문구 변경: 구매 예정량 / 단위: kg 및 ton 동시 표시
+                    # ✅ 요약 박스 문구 업데이트
                     st.markdown(f"""
                     <div class="calc-box">
                         📋 최종 적용 요약<br>
                         - 규격: {selected_row['소재명']}<br>
                         - 두께(T): {final_t} / 폭(W): {final_w}<br>
-                        - 단중: {unit_w} kg/EA<br>
+                        - 단중: {unit_w} kg<br>
+                        - 구매 예정수량: {qty_in:,} EA<br>
                         - 📦 총 구매 예정량: {total_kg:,.0f} kg ({total_ton:,.1f} ton)
                     </div>
                     """, unsafe_allow_html=True)
