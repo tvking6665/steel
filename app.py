@@ -10,14 +10,13 @@ try:
 except:
     st.set_page_config(page_title="전우정밀 원소재 정보 시스템", layout="centered")
 
-# 2. CSS 최적화 (모바일 시인성 집중)
+# 2. CSS 최적화 (모바일 시인성 및 결과 박스 강조)
 st.markdown("""
 <style>
     .main .block-container { padding: 1rem 0.5rem; }
     .company-name { font-size: 14px; font-weight: bold; color: #0047AB; margin-bottom: 2px; }
     .app-title { font-size: 22px; font-weight: 800; margin-top: 0px; margin-bottom: 10px; }
     
-    /* 버튼 및 박스 디자인 */
     .mes-button {
         display: inline-block;
         padding: 0.4em 0.8em;
@@ -49,7 +48,6 @@ st.markdown("""
         font-size: 16px;
         margin-top: 10px;
     }
-    /* 테이블 폰트 축소 */
     .stTable { font-size: 11px !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -76,7 +74,7 @@ def load_data():
 df = load_data()
 
 if df is not None:
-    # 5. 입력 영역 (모바일 대응을 위해 간격 조정)
+    # 5. 입력 영역
     c1, c2 = st.columns(2)
     with c1: name_in = st.text_input("강종 검색", placeholder="SPFH590").strip()
     with c2: thick_in = st.text_input("두께(T) 검색", placeholder="1.8").strip()
@@ -92,21 +90,27 @@ if df is not None:
 
     st.divider()
 
-    # 7. 결과 출력 및 선택 (모바일 최적화 드롭다운)
+    # 7. 결과 출력 및 선택 (폭 정보 추가)
     if not res.empty:
         st.markdown(f'<div class="search-result-box">✅ 검색 결과: {len(res)}건</div>', unsafe_allow_html=True)
         
-        # 💡 드롭다운 메뉴로 변경 (길게 늘어지지 않음)
-        res['select_label'] = res.apply(lambda x: f"{x['소재명']} (T:{x['두께(T)']} / 단중:{x['제품 단중']})", axis=1)
+        # 💡 선택 목록에 '폭' 정보 추가
+        # 엑셀의 컬럼명이 '폭' 또는 '소재폭' 등 실제 이름과 맞는지 확인이 필요합니다.
+        # 여기서는 보편적인 '폭'으로 설정했습니다.
+        def create_label(row):
+            width = row.get('폭', row.get('소재폭', '-'))
+            return f"{row['소재명']} (T:{row['두께(T)']} / W:{width} / 단중:{row['제품 단중']})"
+        
+        res['select_label'] = res.apply(create_label, axis=1)
         
         selected_label = st.selectbox(
-            "계산할 소재를 선택하세요👇",
+            "계산할 정확한 규격을 선택하세요👇",
             options=res['select_label'].tolist()
         )
         
         selected_row = res[res['select_label'] == selected_label].iloc[0]
         
-        # 8. 계산 박스
+        # 8. 계산 결과 출력
         if qty_in > 0:
             try:
                 unit_w = float(selected_row['제품 단중'])
@@ -114,15 +118,16 @@ if df is not None:
                 st.markdown(f"""
                 <div class="calc-box">
                     📦 소요량 계산 결과<br>
-                    <small>{selected_row['소재명']} (T:{selected_row['두께(T)']}) 기준</small><br>
-                    - 총 구매 필요 중량: {total_w:,.0f} kg
+                    <small>{selected_label.split(' / 단중')[0]}) 기준</small><br>
+                    - 적용 단중: {unit_w} kg/EA<br>
+                    - 총 구매 필요 중량: {total_weight:,.0f} kg
                 </div>
                 """, unsafe_allow_html=True)
             except:
                 st.warning("단중 데이터 확인 필요")
 
-        # 9. 테이블
-        with st.expander("📋 상세 규격 데이터 보기"):
+        # 9. 상세 테이블 (숨김 처리)
+        with st.expander("📋 전체 상세 데이터 확인"):
             st.table(res.drop(columns=['select_label']).astype(str).replace('nan', '-'))
     else:
         st.warning("검색 결과가 없습니다.")
