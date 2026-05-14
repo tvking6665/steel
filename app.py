@@ -88,7 +88,7 @@ if df is not None:
     with c2:
         thick_in = st.text_input("두께", placeholder="예: 1.8").strip()
     
-    qty_in = st.number_input("생산 예정 수량 (EA)", min_value=0, value=0, step=1000)
+    qty_in = st.number_input("생산 예상 수량 (EA)", min_value=0, value=0, step=1000)
 
     # 필터링 로직
     res = df.copy()
@@ -107,9 +107,14 @@ if df is not None:
         st.markdown(f'<div class="search-result-box">✅ 조회 결과: {len(res)}건</div>', unsafe_allow_html=True)
         
         if not calc_ready.empty:
-            calc_ready['label'] = calc_ready.apply(
-                lambda x: f"{x['소재명']} (T:{get_val(x, ['두께','두께(T)','T'])} / W:{get_val(x, ['폭','폭(W)','W','소재폭'])} / 단중:{x['제품 단중']})", axis=1
-            )
+            # ✅ 드롭다운 선택창에 '기타 정보(프로젝트명)' 포함
+            def make_label(x):
+                t = get_val(x, ['두께','두께(T)','T'])
+                w = get_val(x, ['폭','폭(W)','W','소재폭'])
+                extra = get_val(x, ['기타 정보 및 사양', '기타정보', '비고'])
+                return f"{x['소재명']} (T:{t} / W:{w} / 단중:{x['제품 단중']}) - {extra}"
+
+            calc_ready['label'] = calc_ready.apply(make_label, axis=1)
             
             selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
             selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
@@ -123,15 +128,17 @@ if df is not None:
                     
                     final_t = get_val(selected_row, ['두께','두께(T)','T'])
                     final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
+                    final_extra = get_val(selected_row, ['기타 정보 및 사양', '기타정보', '비고'])
                     
-                    # ✅ 요약 박스 문구 업데이트
+                    # ✅ 요약 박스 업데이트: 생산 예상 수량 문구 변경 및 프로젝트명 추가
                     st.markdown(f"""
                     <div class="calc-box">
                         📋 최종 적용 요약<br>
                         - 규격: {selected_row['소재명']}<br>
                         - 두께(T): {final_t} / 폭(W): {final_w}<br>
                         - 단중: {unit_w} kg<br>
-                        - 구매 예정수량: {qty_in:,} EA<br>
+                        - 프로젝트명: {final_extra}<br>
+                        - 생산 예상 수량: {qty_in:,} EA<br>
                         - 📦 총 구매 예정량: {total_kg:,.0f} kg ({total_ton:,.1f} ton)
                     </div>
                     """, unsafe_allow_html=True)
