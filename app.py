@@ -107,12 +107,12 @@ if df is not None:
         st.markdown(f'<div class="search-result-box">✅ 조회 결과: {len(res)}건</div>', unsafe_allow_html=True)
         
         if not calc_ready.empty:
-            # ✅ 드롭다운 선택창에 '기타 정보(프로젝트명)' 포함
+            # ✅ 드롭다운 라벨 한글화 (T: -> 두께:, W: -> 폭:)
             def make_label(x):
                 t = get_val(x, ['두께','두께(T)','T'])
                 w = get_val(x, ['폭','폭(W)','W','소재폭'])
                 extra = get_val(x, ['기타 정보 및 사양', '기타정보', '비고'])
-                return f"{x['소재명']} (T:{t} / W:{w} / 단중:{x['제품 단중']}) - {extra}"
+                return f"{x['소재명']} (두께:{t} / 폭:{w} / 단중:{x['제품 단중']}) - {extra}"
 
             calc_ready['label'] = calc_ready.apply(make_label, axis=1)
             
@@ -130,12 +130,11 @@ if df is not None:
                     final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
                     final_extra = get_val(selected_row, ['기타 정보 및 사양', '기타정보', '비고'])
                     
-                    # ✅ 요약 박스 업데이트: 생산 예상 수량 문구 변경 및 프로젝트명 추가
                     st.markdown(f"""
                     <div class="calc-box">
                         📋 최종 적용 요약<br>
                         - 규격: {selected_row['소재명']}<br>
-                        - 두께(T): {final_t} / 폭(W): {final_w}<br>
+                        - 두께: {final_t} / 폭: {final_w}<br>
                         - 단중: {unit_w} kg<br>
                         - 프로젝트명: {final_extra}<br>
                         - 생산 예상 수량: {qty_in:,} EA<br>
