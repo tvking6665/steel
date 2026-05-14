@@ -10,18 +10,18 @@ try:
 except:
     st.set_page_config(page_title="전우정밀 원소재 정보 시스템", layout="centered")
 
-# 2. CSS 최적화: 모바일 가독성 및 디자인 설정
+# 2. CSS 최적화: 디자인 및 시인성 설정
 st.markdown("""
 <style>
     .main .block-container { padding: 1rem 0.5rem; }
     .company-name { font-size: 16px; font-weight: bold; color: #0047AB; margin-bottom: 2px; }
     .app-title { font-size: 26px; font-weight: 800; margin-top: 0px; margin-bottom: 10px; }
     .stTable { font-size: 12px !important; width: 100% !important; }
-    th { background-color: #f8f9fa !important; text-align: center !important; padding: 4px !important; }
+    th { background-color: #f8f9fa !important; text-align: center !important; padding: 4px !important; color: black !important; }
     td { text-align: center !important; padding: 4px !important; }
     div[data-testid="stTable"] { overflow-x: auto; }
     
-    /* MES 버튼 스타일 */
+    /* 실시간 가동 현황판 버튼 */
     .mes-button {
         display: inline-block;
         padding: 0.5em 1em;
@@ -35,16 +35,16 @@ st.markdown("""
         text-align: center;
     }
 
-    /* ✅ 검색 결과 박스 (다크/라이트 모드 자동 대응) */
+    /* ✅ 검색 결과 박스 (다크모드 시인성 극대화 버전) */
     .search-result-box {
-        background-color: rgba(28, 131, 225, 0.15); /* 투명도 있는 파란 배경 */
-        border-left: 5px solid #1c83e1;             /* 왼쪽 강조선 */
+        background-color: rgba(255, 255, 255, 0.05); /* 아주 살짝 밝은 배경 */
+        border: 2px solid #1c83e1;                 /* 선명한 파란색 테두리 */
         padding: 12px 15px;
         border-radius: 8px;
         margin: 15px 0px;
-        color: var(--text-color);                   /* 시스템 테마에 따른 자동 글자색 */
+        color: #58a6ff !important;                   /* 밝은 하늘색 글자 (다크모드 최적화) */
         font-weight: bold;
-        font-size: 16px;
+        font-size: 18px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -63,7 +63,7 @@ st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=Tru
 # 4. 데이터 로드 함수
 @st.cache_data(ttl=600)
 def load_data():
-    file_name = "data.xlsx"  
+    file_name = "data.xlsx"  # 파일명이 'data.xlsx'인지 꼭 확인하세요!
     if os.path.exists(file_name):
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
@@ -108,7 +108,7 @@ if df is not None:
 
     # 7. 결과 출력
     if not res.empty:
-        # ✅ st.info 대신 커스텀 스타일 박스 적용
+        # ✅ st.info 대신 커스텀 스타일 박스 적용 (글자색 강조)
         st.markdown(f'<div class="search-result-box">✅ 검색 결과: {len(res)}건</div>', unsafe_allow_html=True)
         
         res_display = res.reset_index(drop=True)
