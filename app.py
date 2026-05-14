@@ -50,7 +50,7 @@ st.markdown('<h1 class="app-title">원소재 정보</h1>', unsafe_allow_html=Tru
 # 4. 데이터 로드 함수
 @st.cache_data(ttl=600)
 def load_data():
-    file_name = "데이터.xlsx"  # 파일명이 '데이터.xlsx'인지 꼭 확인하세요!
+    file_name = "data.xlsx"  # 파일명이 'data.xlsx'인지 꼭 확인하세요!
     if os.path.exists(file_name):
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
