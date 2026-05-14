@@ -17,7 +17,6 @@ st.markdown("""
     .company-name { font-size: 14px; font-weight: bold; color: #0047AB; margin-bottom: 2px; }
     .app-title { font-size: 22px; font-weight: 800; margin-top: 0px; margin-bottom: 10px; }
     
-    /* 적용 버튼 스타일 */
     div.stButton > button:first-child {
         width: 100%;
         background-color: #1c83e1;
@@ -74,8 +73,14 @@ def load_data():
 
 df = load_data()
 
+# 정보 추출용 헬퍼 함수
+def get_val(row, cols):
+    for c in cols:
+        if c in row.index and pd.notnull(row[c]): return row[c]
+    return "-"
+
 if df is not None:
-    # --- 5. 입력 영역 (Form 제거하여 실시간 반영) ---
+    # 5. 입력 영역
     st.write("🔍 **소재 검색 및 수량 입력**")
     c1, c2 = st.columns(2)
     with c1:
@@ -85,7 +90,7 @@ if df is not None:
     
     qty_in = st.number_input("생산 예정 수량 (EA)", min_value=0, value=0, step=1000)
 
-    # 필터링 로직 (입력 즉시 실행됨)
+    # 필터링 로직
     res = df.copy()
     if name_in:
         res = res[res['소재명'].astype(str).str.contains(name_in, case=False, na=False)]
@@ -96,37 +101,35 @@ if df is not None:
 
     st.divider()
 
-    # --- 6. 결과 출력 (접속하자마자 바로 보임) ---
+    # 6. 결과 출력
     if not res.empty:
-        # 단중이 있는 항목만 드롭다운에 표시
         calc_ready = res.dropna(subset=['제품 단중']).copy()
-        
         st.markdown(f'<div class="search-result-box">✅ 조회 결과: {len(res)}건</div>', unsafe_allow_html=True)
         
         if not calc_ready.empty:
-            # 규격 라벨 생성 함수
-            def get_val(row, cols):
-                for c in cols:
-                    if c in row.index and pd.notnull(row[c]): return row[c]
-                return "-"
-
             calc_ready['label'] = calc_ready.apply(
                 lambda x: f"{x['소재명']} (T:{get_val(x, ['두께','두께(T)','T'])} / W:{get_val(x, ['폭','폭(W)','W','소재폭'])} / 단중:{x['제품 단중']})", axis=1
             )
             
-            # 규격 선택 (이것도 바로 보임)
             selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
             selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             
-            # --- 7. 소요량 계산 적용 버튼 (이 부분만 선택적으로 작동) ---
+            # 7. 소요량 계산 적용 버튼
             if st.button("✅ 소요량 계산 결과 적용"):
                 if qty_in > 0:
                     unit_w = float(selected_row['제품 단중'])
                     total_w = unit_w * qty_in
+                    
+                    # 두께와 폭 정보를 가져오기
+                    final_t = get_val(selected_row, ['두께','두께(T)','T'])
+                    final_w = get_val(selected_row, ['폭','폭(W)','W','소재폭'])
+                    
+                    # ✅ 요약 박스에 두께와 폭 추가 표시
                     st.markdown(f"""
                     <div class="calc-box">
                         📋 최종 적용 요약<br>
                         - 규격: {selected_row['소재명']}<br>
+                        - 두께(T): {final_t} / 폭(W): {final_w}<br>
                         - 단중: {unit_w} kg/EA<br>
                         - 📦 총 소요 예정량: {total_w:,.0f} kg
                     </div>
@@ -134,9 +137,8 @@ if df is not None:
                 else:
                     st.warning("생산 수량을 입력해야 소요량이 계산됩니다.")
         else:
-            st.info("💡 검색된 항목 중 단중 정보가 있는 규격이 없습니다.")
+            st.info("💡 단중 정보가 있는 규격이 없습니다.")
 
-        # 상세 테이블 (항상 노출)
         with st.expander("📊 상세 데이터 시트 확인"):
             st.table(res.astype(str).replace('nan', '-'))
     else:
