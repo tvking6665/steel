@@ -18,6 +18,7 @@ st.markdown("""
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
     .result-text { font-size: 14px !important; line-height: 1.6; }
     .result-value { font-size: 15px !important; font-weight: bold; color: #72ff8d; }
+    .loss-label { font-size: 13px; color: #ffbcbc; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -49,7 +50,6 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
-            # 컬럼명 통합 인식
             df.rename(columns={
                 '소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', 
                 '제품 단중': '단중', '기타정보및사양': '프로젝트명'
@@ -65,7 +65,7 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# 완전 초기화 함수 (모든 세션 데이터 삭제 후 재실행)
+# 완전 초기화 함수
 def reset_inputs():
     for key in list(st.session_state.keys()):
         if key != "auth_success":
@@ -84,12 +84,6 @@ def on_spec_change():
             st.session_state.thick_box = float(matched_row['두께'])
         except:
             pass
-
-# 사이드바
-with st.sidebar:
-    if st.button("🚪 로그아웃"):
-        st.session_state.auth_success = False
-        st.rerun()
 
 # 헤더
 h1, h2 = st.columns([1, 5])
@@ -122,7 +116,6 @@ r1c1, r1c2 = st.columns(2)
 with r1c1:
     available_mats = ["전체"] + sorted(res['강종명'].dropna().unique().tolist())
     name_in = st.selectbox("✨ 강종명 선택", options=available_mats, key="mat_box")
-
 with r1c2:
     thick_in = st.number_input("📏 두께 (T)", value=None, placeholder="", format="%.2f", key="thick_box")
 
@@ -132,7 +125,7 @@ with r2c1:
 with r2c2: 
     order_qty_in = st.number_input("발주 수량 (EA)", min_value=0, value=0, step=1000, key="order_qty")
 
-loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5)
+loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5, key="loss_rate_input")
 
 st.divider()
 
@@ -162,6 +155,7 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
+    # 버튼 5:5 배치
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
@@ -171,27 +165,46 @@ if not calc_ready.empty:
 
     if apply_btn:
         unit_w = float(selected_row['단중'])
-        prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
-        order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
-        prod_ton = prod_kg / 1000
-        order_ton = order_kg / 1000
-
-        st.success(f"##### 📋 적용 요약 (Loss {loss_rate}%)")
         
-        # 따옴표 오류가 없도록 안전하게 구성된 결과창
+        # HTML 결과창 구성
         summary_html = f"""
-        <div style="background-color: #1e2630; padding: 12px; border-radius: 8px; border: 1px solid #28a745;">
+        <div style="background-color: #1e2630; padding: 15px; border-radius: 8px; border: 1px solid #28a745;">
             <p class="result-text">
                 • 고객사: {selected_row['고객사']}<br>
                 • 프로젝트: {selected_row['프로젝트명']}<br>
                 • 규격: {selected_row['강종명']} ({selected_row['두께']} * {selected_row['폭']})<br>
-                • 단중: <span class="result-value">{unit_w:.4f} kg</span>
+                • 단중: <span class="result-value">{unit_w:.4f} kg</span><br>
+                <span class="loss-label">※ 적용 요약 (LOSS {loss_rate}%)</span>
             </p>
-            <hr style="border: 0.1px solid #444; margin: 8px 0;">
-            <p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>
-            <p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>
-        </div>
+            <hr style="border: 0.1px solid #444; margin: 10px 0;">
         """
+
+        # 생산 예상수량 결과 (값이 있을 때만)
+        if qty_in > 0:
+            prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
+            prod_ton = prod_kg / 1000
+            summary_html += f"""
+            <p class="result-text" style="margin-bottom:10px;">
+                🏭 <b>생산 예상수량 결과:</b><br>
+                <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA
+            </p>
+            """
+
+        # 발주 수량 결과 (값이 있을 때만)
+        if order_qty_in > 0:
+            order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
+            order_ton = order_kg / 1000
+            summary_html += f"""
+            <p class="result-text">
+                📦 <b>발주 수량 결과:</b><br>
+                <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA
+            </p>
+            """
+        
+        if qty_in == 0 and order_qty_in == 0:
+            summary_html += '<p class="result-text">⚠️ 수량을 입력해주세요.</p>'
+
+        summary_html += "</div>"
         st.markdown(summary_html, unsafe_allow_html=True)
 else:
     st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
