@@ -10,12 +10,15 @@ try:
 except:
     st.set_page_config(page_title="원소재 정보 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS 스타일 (제목 및 로고용)
+# 2. CSS 스타일 (폰트 크기 대폭 조정)
 st.markdown("""
 <style>
     .main .block-container { padding: 0.5rem 0.8rem; }
     .company-name { font-size: 13px; font-weight: bold; color: #0047AB; margin-bottom: 2px; text-align: center; }
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
+    /* 결과창 텍스트 사이즈 조정 */
+    .result-text { font-size: 14px !important; line-height: 1.6; }
+    .result-value { font-size: 15px !important; font-weight: bold; color: #72ff8d; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -39,7 +42,7 @@ if not st.session_state.auth_success:
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-# 4. 데이터 로드 (data.xlsx)
+# 4. 데이터 로드
 @st.cache_data(ttl=600)
 def load_data():
     file_name = "data.xlsx"
@@ -47,7 +50,6 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
-            # 주요 컬럼명 표준화
             df.rename(columns={'소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', '제품 단중': '단중'}, inplace=True, errors='ignore')
             if '단중' in df.columns:
                 df['단중'] = pd.to_numeric(df['단중'], errors='coerce')
@@ -60,17 +62,23 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# 자동 연동용 콜백 함수
+# [핵심] 자동 연동용 콜백 함수 (강종명 + 두께 동시 업데이트)
 def on_spec_change():
     if "spec_select" in st.session_state and st.session_state.spec_select:
         try:
-            # "[사양] 강종명 (..." 형식에서 강종명만 추출
-            target_mat = st.session_state.spec_select.split('] ')[1].split(' (')[0]
+            label = st.session_state.spec_select
+            # 라벨 예시: "[-] SPFH590 (1.8 * 256.0) / 단중: 0.2451"
+            # 1. 강종명 추출
+            target_mat = label.split('] ')[1].split(' (')[0]
             st.session_state.mat_box = target_mat
+            
+            # 2. 두께 추출
+            target_thick = float(label.split(' (')[1].split(' *')[0])
+            st.session_state.thick_box = target_thick
         except:
             pass
 
-# 헤더 표시
+# 헤더
 h1, h2 = st.columns([1, 5])
 with h1:
     if os.path.exists("logo.png"): st.image("logo.png", width=40)
@@ -92,7 +100,8 @@ with r1c1:
     name_in = st.selectbox("✨ 강종명 선택", options=available_mats, key="mat_box")
 
 with r1c2:
-    thick_in = st.number_input("📏 두께 (T)", value=None, placeholder="", format="%.2f")
+    # [수정] key="thick_box"를 추가하여 상세 사양 선택 시 연동되도록 함
+    thick_in = st.number_input("📏 두께 (T)", value=None, placeholder="", format="%.2f", key="thick_box")
 
 r2c1, r2c2 = st.columns(2)
 with r2c1: qty_in = st.number_input("생산 예상수량 (EA)", min_value=0, value=0, step=1000)
@@ -129,30 +138,32 @@ if not calc_ready.empty:
 
     if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
         unit_w = float(selected_row['단중'])
-        # 정확한 중량 계산 공식
         prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
         order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
-        
-        # TON 단위 계산
         prod_ton = prod_kg / 1000
         order_ton = order_kg / 1000
 
-        # 결과 요약 (디자인 유지 및 HTML 태그 오류 해결을 위해 마크다운 방식 사용)
-        st.success(f"### 📋 적용 요약 (Loss {loss_rate}%)")
+        # 결과창 폰트 크기 조정 및 가독성 개선
+        st.success(f"##### 📋 적용 요약 (Loss {loss_rate}%)")
         
-        summary_md = f"""
-**- 사양:** {selected_row.get('기타정보및사양','-')}
-**- 규격:** {selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})
-**- 단중:** {unit_w:.4f} kg
----
-"""
+        # HTML을 사용하여 폰트 크기를 세밀하게 제어
+        summary_html = f"""
+        <div style="background-color: #1e2630; padding: 12px; border-radius: 8px; border: 1px solid #28a745;">
+            <p class="result-text">
+                • 사양: {selected_row.get('기타정보및사양','-')}<br>
+                • 규격: {selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})<br>
+                • 단중: <span class="result-value">{unit_w:.4f} kg</span>
+            </p>
+            <hr style="border: 0.1px solid #444; margin: 8px 0;">
+        """
         if qty_in > 0:
-            summary_md += f"🏭 **생산 예상 중량:** `{prod_kg:,.1f} kg` ({prod_ton:,.2f} ton) / {qty_in:,} EA  \n"
+            summary_html += f"""<p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>"""
         
         if order_qty_in > 0:
-            summary_md += f"📦 **고객 발주 중량:** `{order_kg:,.1f} kg` ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
-
-        st.info(summary_md)
+            summary_html += f"""<p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>"""
+        
+        summary_html += "</div>"
+        st.markdown(summary_html, unsafe_allow_html=True)
 else:
     st.warning("단중 정보가 기입된 데이터가 없습니다.")
 
