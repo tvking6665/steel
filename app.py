@@ -49,7 +49,7 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
-            # 프로젝트명/기타정보및사양 통합 인식
+            # 컬럼명 통합 인식
             df.rename(columns={
                 '소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', 
                 '제품 단중': '단중', '기타정보및사양': '프로젝트명'
@@ -65,13 +65,11 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# --- [수정] 더 강력한 완전 초기화 함수 ---
+# 완전 초기화 함수 (모든 세션 데이터 삭제 후 재실행)
 def reset_inputs():
-    # 로그인 정보만 빼고 모든 세션 데이터를 삭제
     for key in list(st.session_state.keys()):
         if key != "auth_success":
             del st.session_state[key]
-    # 스트림릿 캐시까지 고려하여 재실행
     st.rerun()
 
 # 연동용 콜백 함수
@@ -164,12 +162,10 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
-    # 버튼 5:5 배치
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
     with btn_col2:
-        # 버튼을 누르면 즉시 reset_inputs 호출
         if st.button("🔄 입력 초기화", use_container_width=True):
             reset_inputs()
 
@@ -182,6 +178,7 @@ if not calc_ready.empty:
 
         st.success(f"##### 📋 적용 요약 (Loss {loss_rate}%)")
         
+        # 따옴표 오류가 없도록 안전하게 구성된 결과창
         summary_html = f"""
         <div style="background-color: #1e2630; padding: 12px; border-radius: 8px; border: 1px solid #28a745;">
             <p class="result-text">
@@ -191,4 +188,10 @@ if not calc_ready.empty:
                 • 단중: <span class="result-value">{unit_w:.4f} kg</span>
             </p>
             <hr style="border: 0.1px solid #444; margin: 8px 0;">
-            <p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:
+            <p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>
+            <p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>
+        </div>
+        """
+        st.markdown(summary_html, unsafe_allow_html=True)
+else:
+    st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
