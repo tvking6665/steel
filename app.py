@@ -29,8 +29,7 @@ def load_data():
             df.columns = df.columns.str.strip()
             df.rename(columns={
                 '소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', 
-                '제품 단중': '단중', '기기정보및사양': '프로젝트명',
-                '기타정보및사양': '프로젝트명'
+                '제품 단중': '단중', '기타정보및사양': '프로젝트명'
             }, inplace=True, errors='ignore')
             if '단중' in df.columns:
                 df['단중'] = pd.to_numeric(df['단중'], errors='coerce')
@@ -59,39 +58,39 @@ if not st.session_state.auth_success:
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-# 5. 초기화 및 상태 관리 (버전 관리)
+# 5. 초기화 및 버전 관리
 if 'form_version' not in st.session_state:
     st.session_state.form_version = 0
 
 def reset_all():
-    # 버전 번호를 올려 UI를 완전히 새로고침
     st.session_state.form_version += 1
-    # 세션에 저장된 연동 데이터 삭제
+    # 연동 데이터 완전 삭제
     for k in ['cur_customer', 'cur_project', 'cur_mat', 'cur_thick', 'apply_clicked']:
         if k in st.session_state:
             del st.session_state[k]
     st.rerun()
 
-# [핵심] 자동 연동 복구 콜백
+# [핵심] 자동 연동 콜백 함수 - 상세 사양 고르면 상단 위젯 동기화
 def on_spec_change():
     v = st.session_state.form_version
+    # 현재 버전의 사양 선택박스 값을 가져옴
     label = st.session_state.get(f"spec_select_{v}")
     if label and label != "선택하세요":
         try:
-            # 원본 데이터에서 라벨과 일치하는 행 찾기
+            # 전체 데이터에서 해당 라벨과 일치하는 행을 찾아 세션 업데이트
             temp_df = df_raw.copy()
-            temp_df['label_match'] = temp_df.apply(
+            temp_df['full_label'] = temp_df.apply(
                 lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
             )
-            target = temp_df[temp_df['label_match'] == label].iloc[0]
+            target = temp_df[temp_df['full_label'] == label].iloc[0]
             
-            # 상단 위젯 연동을 위한 세션 값 업데이트
             st.session_state.cur_customer = target['고객사']
             st.session_state.cur_project = target.get('프로젝트명','전체')
             st.session_state.cur_mat = target['강종명']
             st.session_state.cur_thick = float(target['두께'])
             st.session_state.apply_clicked = False
-        except: pass
+        except:
+            pass
 
 # 헤더
 h1, h2 = st.columns([1, 5])
@@ -133,7 +132,16 @@ loss = st.number_input("Loss율 (%)", value=3.0, step=0.5, key=f"loss_{v}")
 
 st.divider()
 
-# 7. 상세 사양 선택 (하단 위젯)
+# 7. 버튼 및 상세 사양 선택
+btn_col1, btn_col2 = st.columns(2)
+with btn_col1:
+    if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
+        st.session_state.apply_clicked = True
+with btn_col2:
+    if st.button("🔄 입력 초기화", use_container_width=True):
+        reset_all()
+
+# 사양 필터링 로직
 filtered = res[res['강종명'] == sel_mat] if sel_mat != "전체" else res
 if sel_thick is not None:
     filtered = filtered[filtered['두께'] == sel_thick]
@@ -145,37 +153,27 @@ if not calc_ready.empty:
         lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
     )
     s_options = ["선택하세요"] + calc_ready['label'].tolist()
-    # on_change 콜백을 다시 연결하여 자동 연동 활성화
+    # on_change=on_spec_change 를 통해 다시 연동 기능 활성화
     st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=s_options, key=f"spec_select_{v}", on_change=on_spec_change)
     
-    b1, b2 = st.columns(2)
-    with b1: 
-        if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
-            st.session_state.apply_clicked = True
-    with b2: 
-        if st.button("🔄 입력 초기화", use_container_width=True):
-            reset_all()
-
-    # 결과창 출력
+    # 8. 결과 출력부
     if st.session_state.get('apply_clicked') and st.session_state.get(f"spec_select_{v}") != "선택하세요":
-        row = calc_ready[calc_ready['label'] == st.session_state[f"spec_select_{v}"]].iloc[0]
-        u_w = float(row['단중'])
-        
-        res_md = ""
-        # [요청 반영] 생산 예상수량 결과 문구 수정
-        if q_prod > 0:
-            p_kg = (u_w * q_prod) * (1 + (loss / 100))
-            res_md += f"🏭 **생산 예상수량 결과:** \n #### 구매필요량 : :green[`{p_kg:,.1f} kg`] ({p_kg/1000:,.2f} ton) / 생산필요수량 : `{q_prod:,} EA` \n\n"
-        
-        # 발주 수량 결과 문구 유지
-        if q_order > 0:
-            o_kg = (u_w * q_order) * (1 + (loss / 100))
-            res_md += f"📦 **발주 수량 결과:** \n #### 구매필요량 : :green[`{o_kg:,.1f} kg`] ({o_kg/1000:,.2f} ton) / 발주량 : `{q_order:,} EA`"
-        
-        if q_prod == 0 and q_order == 0: res_md = "⚠️ 수량을 입력해주세요."
-        st.success(res_md)
+        try:
+            row = calc_ready[calc_ready['label'] == st.session_state[f"spec_select_{v}"]].iloc[0]
+            u_w = float(row['단중'])
+            
+            res_md = ""
+            if q_prod > 0:
+                p_kg = (u_w * q_prod) * (1 + (loss / 100))
+                res_md += f"🏭 **생산 예상수량 결과:** \n #### 구매필요량 : :green[`{p_kg:,.1f} kg`] ({p_kg/1000:,.2f} ton) / 생산필요수량 : `{q_prod:,} EA` \n\n"
+            if q_order > 0:
+                o_kg = (u_w * q_order) * (1 + (loss / 100))
+                res_md += f"📦 **발주 수량 결과:** \n #### 구매필요량 : :green[`{o_kg:,.1f} kg`] ({o_kg/1000:,.2f} ton) / 발주량 : `{q_order:,} EA`"
+            
+            if q_prod == 0 and q_order == 0: res_md = "⚠️ 수량을 입력해주세요."
+            st.success(res_md)
 
-        st.info(f"""
+            st.info(f"""
 ### 📋 상세 정보
 - **고객사:** {row['고객사']}
 - **프로젝트:** {row.get('프로젝트명','-')}
@@ -183,8 +181,10 @@ if not calc_ready.empty:
 - **단중:** `{u_w:.4f} kg`
 - **※ 적용 요약 (LOSS {loss}%)**
 """)
+        except:
+            st.error("결과 표시 중 오류가 발생했습니다.")
 else:
-    st.warning("조건에 맞는 데이터가 없습니다. [입력 초기화] 후 다시 시도해 주세요.")
+    st.warning("조건에 맞는 데이터가 없습니다. 상단의 [🔄 입력 초기화] 후 다시 시도해 주세요.")
 
 if st.sidebar.button("🚪 로그아웃"):
     st.session_state.auth_success = False
