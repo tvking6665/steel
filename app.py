@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from PIL import Image
 
-# 1. 앱 설정
+# 1. 앱 기본 설정
 try:
     favicon = Image.open("logo.png")
     st.set_page_config(page_title="원소재 정보 시스템", page_icon=favicon, layout="centered")
@@ -58,19 +58,25 @@ if not st.session_state.auth_success:
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-# 5. 상태 초기화 관리
-if 'form_version' not in st.session_state:
-    st.session_state.form_version = 0
+# 5. [핵심] 상태 관리 엔진
+if 'v' not in st.session_state: st.session_state.v = 0
+if 'cur_c' not in st.session_state: st.session_state.cur_c = "전체"
+if 'cur_p' not in st.session_state: st.session_state.cur_p = "전체"
+if 'cur_m' not in st.session_state: st.session_state.cur_m = "전체"
+if 'cur_t' not in st.session_state: st.session_state.cur_t = None
 
+# 초기화 함수
 def reset_all():
-    st.session_state.form_version += 1
-    # 세션 변수 싹 지우기
-    for k in ['cur_customer', 'cur_project', 'cur_mat', 'cur_thick', 'apply_clicked']:
-        if k in st.session_state:
-            del st.session_state[k]
+    st.session_state.v += 1
+    st.session_state.cur_c = "전체"
+    st.session_state.cur_p = "전체"
+    st.session_state.cur_m = "전체"
+    st.session_state.cur_t = None
+    st.session_state.apply_clicked = False
+    if 'last_spec' in st.session_state: del st.session_state.last_spec
     st.rerun()
 
-# 헤더
+# 헤더 표시
 h1, h2 = st.columns([1, 5])
 with h1:
     if os.path.exists("logo.png"): st.image("logo.png", width=40)
@@ -79,80 +85,74 @@ with h2:
     st.markdown('<p class="app-title" style="text-align:left; font-size:18px !important;">원소재 정보 시스템</p>', unsafe_allow_html=True)
 
 # 6. 입력 영역 (상단)
-v = st.session_state.form_version
-
-# 고객사
-c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
-c_val = st.session_state.get('cur_customer', '전체')
-c_idx = c_list.index(c_val) if c_val in c_list else 0
-
-# 프로젝트
-project_df = df_raw[df_raw['고객사'] == c_val] if c_val != '전체' else df_raw
-p_list = ['전체'] + sorted(project_df['프로젝트명'].dropna().unique().tolist())
-p_val = st.session_state.get('cur_project', '전체')
-p_idx = p_list.index(p_val) if p_val in p_list else 0
+ver = st.session_state.v
 
 r0c1, r0c2 = st.columns(2)
 with r0c1:
-    sel_customer = st.selectbox("🤝 고객사 선택", options=c_list, index=c_idx, key=f"c_box_{v}")
-with r0c2:
-    sel_project = st.selectbox("📂 프로젝트명", options=p_list, index=p_idx, key=f"p_box_{v}")
+    c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
+    c_idx = c_list.index(st.session_state.cur_c) if st.session_state.cur_c in c_list else 0
+    sel_customer = st.selectbox("🤝 고객사 선택", options=c_list, index=c_idx, key=f"cb_{ver}")
+    st.session_state.cur_c = sel_customer
 
-# 강종 및 두께
+with r0c2:
+    p_df = df_raw[df_raw['고객사'] == sel_customer] if sel_customer != '전체' else df_raw
+    p_list = ['전체'] + sorted(p_df['프로젝트명'].dropna().unique().tolist())
+    p_idx = p_list.index(st.session_state.cur_p) if st.session_state.cur_p in p_list else 0
+    sel_project = st.selectbox("📂 프로젝트명", options=p_list, index=p_idx, key=f"pb_{ver}")
+    st.session_state.cur_p = sel_project
+
 r1c1, r1c2 = st.columns(2)
 with r1c1:
-    m_df = project_df[project_df['프로젝트명'] == sel_project] if sel_project != '전체' else project_df
+    m_df = p_df[p_df['프로젝트명'] == sel_project] if sel_project != '전체' else p_df
     m_list = ['전체'] + sorted(m_df['강종명'].dropna().unique().tolist())
-    m_val = st.session_state.get('cur_mat', '전체')
-    m_idx = m_list.index(m_val) if m_val in m_list else 0
-    sel_mat = st.selectbox("✨ 강종명 선택", options=m_list, index=m_idx, key=f"m_box_{v}")
+    m_idx = m_list.index(st.session_state.cur_m) if st.session_state.cur_m in m_list else 0
+    sel_mat = st.selectbox("✨ 강종명 선택", options=m_list, index=m_idx, key=f"mb_{ver}")
+    st.session_state.cur_m = sel_mat
 with r1c2:
-    t_val = st.session_state.get('cur_thick')
-    sel_thick = st.number_input("📏 두께 (T)", value=t_val, placeholder="", format="%.2f", key=f"t_box_{v}")
+    sel_thick = st.number_input("📏 두께 (T)", value=st.session_state.cur_t, format="%.2f", key=f"tb_{ver}")
+    st.session_state.cur_t = sel_thick
 
 r2c1, r2c2 = st.columns(2)
-with r2c1: q_prod = st.number_input("생산 예상수량 (EA)", min_value=0, step=1000, key=f"q_p_{v}")
-with r2c2: q_order = st.number_input("발주 수량 (EA)", min_value=0, step=1000, key=f"q_o_{v}")
-loss = st.number_input("Loss율 (%)", value=3.0, step=0.5, key=f"loss_{v}")
+with r2c1: q_prod = st.number_input("생산 예상수량 (EA)", min_value=0, step=1000, key=f"qp_{ver}")
+with r2c2: q_order = st.number_input("발주 수량 (EA)", min_value=0, step=1000, key=f"qo_{ver}")
+loss = st.number_input("Loss율 (%)", value=3.0, step=0.5, key=f"ls_{ver}")
 
 st.divider()
 
-# 7. 버튼 및 상세 사양 (하단)
-btn_col1, btn_col2 = st.columns(2)
-with btn_col1:
-    apply_clicked = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
-    if apply_clicked: st.session_state.apply_clicked = True
-with btn_col2:
+# 7. 버튼 영역
+b1, b2 = st.columns(2)
+with b1:
+    if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
+        st.session_state.apply_clicked = True
+with b2:
     if st.button("🔄 입력 초기화", use_container_width=True): reset_all()
 
-# 사양 필터링
+# 사양 필터링 및 상세 선택
 f_df = m_df[m_df['강종명'] == sel_mat] if sel_mat != "전체" else m_df
-if sel_thick is not None: f_df = f_df[f_df['두께'] == sel_thick]
+if sel_thick: f_df = f_df[f_df['두께'] == sel_thick]
 
 calc_ready = f_df.dropna(subset=['단중']).copy() if '단중' in f_df.columns else pd.DataFrame()
 
 if not calc_ready.empty:
-    calc_ready['label'] = calc_ready.apply(
-        lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
-    )
-    s_options = ["선택하세요"] + calc_ready['label'].tolist()
+    calc_ready['lb'] = calc_ready.apply(lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1)
+    s_opts = ["선택하세요"] + calc_ready['lb'].tolist()
     
-    # [핵심] 콜백 함수 대신 버튼 클릭처럼 즉시 반응하도록 처리
-    sel_spec = st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=s_options, key=f"spec_select_{v}")
+    # 상세 사양 선택박스
+    sel_spec = st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=s_opts, key=f"ss_{ver}")
 
-    # 상세 사양을 선택한 경우 세션 업데이트 후 재실행(Rerun)하여 상단 동기화
+    # [핵심] 선택 즉시 세션 강제 동기화 로직
     if sel_spec != "선택하세요" and sel_spec != st.session_state.get('last_spec'):
-        target = calc_ready[calc_ready['label'] == sel_spec].iloc[0]
-        st.session_state.cur_customer = target['고객사']
-        st.session_state.cur_project = target.get('프로젝트명','전체')
-        st.session_state.cur_mat = target['강종명']
-        st.session_state.cur_thick = float(target['두께'])
-        st.session_state.last_spec = sel_spec # 중복 실행 방지
+        tgt = calc_ready[calc_ready['lb'] == sel_spec].iloc[0]
+        st.session_state.cur_c = tgt['고객사']
+        st.session_state.cur_p = tgt.get('프로젝트명', '전체')
+        st.session_state.cur_m = tgt['강종명']
+        st.session_state.cur_t = float(tgt['두께'])
+        st.session_state.last_spec = sel_spec
         st.rerun()
 
-    # 8. 결과 출력
+    # 결과 출력
     if st.session_state.get('apply_clicked') and sel_spec != "선택하세요":
-        row = calc_ready[calc_ready['label'] == sel_spec].iloc[0]
+        row = calc_ready[calc_ready['lb'] == sel_spec].iloc[0]
         u_w = float(row['단중'])
         res_md = ""
         if q_prod > 0:
