@@ -21,7 +21,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 로그인 체크
+# 3. 로그인 체크 (초기화 시 로그인은 유지되어야 하므로 auth_success는 남겨둡니다)
 if "auth_success" not in st.session_state:
     st.session_state.auth_success = False
 
@@ -61,11 +61,11 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# 초기화 함수
+# --- [수정] 완전 초기화 함수 ---
 def reset_inputs():
-    keys_to_reset = ["customer_box", "mat_box", "thick_box", "spec_select", "prod_qty", "order_qty"]
-    for key in keys_to_reset:
-        if key in st.session_state:
+    # 로그인을 제외한 모든 세션 상태 삭제
+    for key in list(st.session_state.keys()):
+        if key != "auth_success":
             del st.session_state[key]
     st.rerun()
 
@@ -81,7 +81,7 @@ def on_spec_change():
         except:
             pass
 
-# 사이드바 (로그아웃만 남김)
+# 사이드바
 with st.sidebar:
     if st.button("🚪 로그아웃"):
         st.session_state.auth_success = False
@@ -147,7 +147,7 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
-    # [핵심 수정] 버튼을 5:5 비율로 배치
+    # 버튼 5:5 배치
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
@@ -175,13 +175,10 @@ if not calc_ready.empty:
                 • 단중: <span class="result-value">{unit_w:.4f} kg</span>
             </p>
             <hr style="border: 0.1px solid #444; margin: 8px 0;">
+            <p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>
+            <p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>
+        </div>
         """
-        if qty_in > 0:
-            summary_html += f"""<p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>"""
-        if order_qty_in > 0:
-            summary_html += f"""<p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>"""
-        
-        summary_html += "</div>"
         st.markdown(summary_html, unsafe_allow_html=True)
 else:
     st.warning("단중 정보가 기입된 데이터가 없습니다.")
