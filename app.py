@@ -23,7 +23,6 @@ st.markdown("""
 if "auth_success" not in st.session_state:
     st.session_state.auth_success = False
 
-# [수정] 초기 상태를 '전체/공란'으로 설정하는 함수
 def init_session_state():
     st.session_state.customer_box = "전체"
     st.session_state.project_box = "전체"
@@ -31,6 +30,7 @@ def init_session_state():
     st.session_state.thick_box = None
     st.session_state.prod_qty = 0
     st.session_state.order_qty = 0
+    st.session_state.apply_clicked = False # 계산 버튼 클릭 상태 관리
     if "spec_select" in st.session_state:
         del st.session_state.spec_select
 
@@ -46,7 +46,7 @@ if not st.session_state.auth_success:
     if st.button("로그인"):
         if selected_user == "관리자" and input_pw == "1128":
             st.session_state.auth_success = True
-            init_session_state() # 로그인 성공 시 초기화 호출
+            init_session_state()
             st.rerun()
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
@@ -74,14 +74,12 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# 완전 초기화 함수
 def reset_inputs():
     init_session_state()
     st.rerun()
 
-# 연동용 콜백 함수 (수동 선택 시에만 작동하도록 보강)
 def on_spec_change():
-    if "spec_select" in st.session_state and st.session_state.spec_select:
+    if "spec_select" in st.session_state and st.session_state.spec_select != "선택하세요":
         try:
             selected_label = st.session_state.spec_select
             matched_row = df_raw.copy()
@@ -93,6 +91,7 @@ def on_spec_change():
             st.session_state.project_box = target.get('프로젝트명','전체')
             st.session_state.mat_box = target['강종명']
             st.session_state.thick_box = float(target['두께'])
+            st.session_state.apply_clicked = False # 사양 변경 시 결과창 가리기
         except: pass
 
 # 헤더
@@ -152,37 +151,35 @@ if not calc_ready.empty:
         lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
     )
     
-    # [수정] 첫 줄 자동 선택 방지를 위해 빈 값 추가
     spec_options = ["선택하세요"] + calc_ready['label'].tolist()
-    selected_label = st.selectbox(
-        "🎯 상세 사양 선택 (단중 기입 항목만 표시)", 
-        options=spec_options, 
-        key="spec_select",
-        on_change=on_spec_change
-    )
+    st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=spec_options, key="spec_select", on_change=on_spec_change)
     
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
-        apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
+        if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
+            st.session_state.apply_clicked = True
     with btn_col2:
         if st.button("🔄 입력 초기화", use_container_width=True):
             reset_inputs()
 
-    if apply_btn and selected_label != "선택하세요":
-        target_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
+    # 계산 결과 출력부 (클릭 시에만 노출)
+    if st.session_state.get('apply_clicked') and st.session_state.spec_select != "선택하세요":
+        target_row = calc_ready[calc_ready['label'] == st.session_state.spec_select].iloc[0]
         unit_w = float(target_row['단중'])
         
-        # 상단 형광색 결과 표시
+        # [수정] 상단 결과창 문구 변경
         result_md = ""
         if st.session_state.prod_qty > 0:
             prod_kg = (unit_w * st.session_state.prod_qty) * (1 + (loss_rate / 100))
             result_md += f"🏭 **생산 예상수량 결과:** \n #### :green[`{prod_kg:,.1f} kg`] ({prod_kg/1000:,.2f} ton) / {st.session_state.prod_qty:,} EA  \n\n"
         if st.session_state.order_qty > 0:
             order_kg = (unit_w * st.session_state.order_qty) * (1 + (loss_rate / 100))
-            result_md += f"📦 **발주 수량 결과:** \n #### :green[`{order_kg:,.1f} kg`] ({order_kg/1000:,.2f} ton) / {st.session_state.order_qty:,} EA"
+            # 문구 변경: 구매필요량 / 발주량
+            result_md += f"📦 **발주 수량 결과:** \n #### 구매필요량 : :green[`{order_kg:,.1f} kg`] ({order_kg/1000:,.2f} ton) / 발주량 : `{st.session_state.order_qty:,} EA`"
         
         if st.session_state.prod_qty == 0 and st.session_state.order_qty == 0:
             result_md = "⚠️ 수량을 입력해주세요."
+        
         st.success(result_md)
 
         # 하단 상세 정보
@@ -195,7 +192,7 @@ if not calc_ready.empty:
 - **※ 적용 요약 (LOSS {loss_rate}%)**
 """
         st.info(info_md)
-    elif apply_btn and selected_label == "선택하세요":
+    elif st.session_state.get('apply_clicked'):
         st.warning("상세 사양을 먼저 선택해주세요.")
 else:
     st.warning("조건에 맞는 데이터가 없습니다. [입력 초기화] 후 다시 시도해 주세요.")
