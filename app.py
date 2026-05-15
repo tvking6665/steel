@@ -21,7 +21,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 로그인 체크 (초기화 시 로그인은 유지되어야 하므로 auth_success는 남겨둡니다)
+# 3. 로그인 체크
 if "auth_success" not in st.session_state:
     st.session_state.auth_success = False
 
@@ -41,7 +41,7 @@ if not st.session_state.auth_success:
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-# 4. 데이터 로드
+# 4. 데이터 로드 (data.xlsx)
 @st.cache_data(ttl=600)
 def load_data():
     file_name = "data.xlsx"
@@ -49,7 +49,16 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
-            df.rename(columns={'소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', '제품 단중': '단중'}, inplace=True, errors='ignore')
+            # [수정] 엑셀의 컬럼명이 '프로젝트명' 혹은 '기타정보및사양'일 때 모두 대응
+            df.rename(columns={
+                '소재명': '강종명', 
+                '두께(T)': '두께', 
+                '폭(W)': '폭', 
+                '제품 단중': '단중', 
+                '기타정보및사양': '프로젝트명',
+                '사양': '프로젝트명'
+            }, inplace=True, errors='ignore')
+            
             if '단중' in df.columns:
                 df['단중'] = pd.to_numeric(df['단중'], errors='coerce')
             return df
@@ -61,9 +70,8 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# --- [수정] 완전 초기화 함수 ---
+# 완전 초기화 함수
 def reset_inputs():
-    # 로그인을 제외한 모든 세션 상태 삭제
     for key in list(st.session_state.keys()):
         if key != "auth_success":
             del st.session_state[key]
@@ -76,6 +84,7 @@ def on_spec_change():
             selected_label = st.session_state.spec_select
             matched_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             st.session_state.customer_box = matched_row['고객사']
+            st.session_state.project_box = matched_row['프로젝트명']
             st.session_state.mat_box = matched_row['강종명']
             st.session_state.thick_box = float(matched_row['두께'])
         except:
@@ -95,13 +104,27 @@ with h2:
     st.markdown('<p class="company-name" style="text-align:left; margin-bottom:0;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
     st.markdown('<p class="app-title" style="text-align:left; font-size:18px !important;">원소재 정보 시스템</p>', unsafe_allow_html=True)
 
-# 5. 입력 필터링
-customer_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
-selected_customer = st.selectbox("🤝 고객사 선택", options=customer_list, key="customer_box")
+# 5. 입력 필터링 (고객사 & 프로젝트명 5:5 배치)
+r0c1, r0c2 = st.columns(2)
+with r0c1:
+    customer_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
+    selected_customer = st.selectbox("🤝 고객사 선택", options=customer_list, key="customer_box")
+
+with r0c2:
+    project_df = df_raw.copy()
+    if selected_customer != '전체':
+        project_df = project_df[project_df['고객사'] == selected_customer]
+    
+    # 엑셀에 '프로젝트명' 열이 있는지 확인 후 리스트업
+    p_col = '프로젝트명' if '프로젝트명' in project_df.columns else project_df.columns[-1]
+    project_list = ['전체'] + sorted(project_df[p_col].dropna().unique().tolist())
+    selected_project = st.selectbox("📂 프로젝트명", options=project_list, key="project_box")
 
 res = df_raw.copy()
 if selected_customer != '전체':
     res = res[res['고객사'] == selected_customer]
+if selected_project != '전체':
+    res = res[res['프로젝트명'] == selected_project]
 
 r1c1, r1c2 = st.columns(2)
 with r1c1:
@@ -134,8 +157,9 @@ else:
     calc_ready = pd.DataFrame()
 
 if not calc_ready.empty:
+    # 라벨에서 프로젝트명을 가장 앞으로 배치
     calc_ready['label'] = calc_ready.apply(
-        lambda x: f"[{x.get('기타정보및사양','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
+        lambda x: f"[{x['프로젝트명']}] {x['강종명']} ({x['두께']} * {x['폭']}) / 단중: {x['단중']:.4f}", axis=1
     )
     
     selected_label = st.selectbox(
@@ -147,7 +171,6 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
-    # 버튼 5:5 배치
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
@@ -170,8 +193,8 @@ if not calc_ready.empty:
         <div style="background-color: #1e2630; padding: 12px; border-radius: 8px; border: 1px solid #28a745;">
             <p class="result-text">
                 • 고객사: {selected_row['고객사']}<br>
-                • 사양: {selected_row.get('기타정보및사양','-')}<br>
-                • 규격: {selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})<br>
+                • 프로젝트: {selected_row['프로젝트명']}<br>
+                • 규격: {selected_row['강종명']} ({selected_row['두께']} * {selected_row['폭']})<br>
                 • 단중: <span class="result-value">{unit_w:.4f} kg</span>
             </p>
             <hr style="border: 0.1px solid #444; margin: 8px 0;">
@@ -181,4 +204,4 @@ if not calc_ready.empty:
         """
         st.markdown(summary_html, unsafe_allow_html=True)
 else:
-    st.warning("단중 정보가 기입된 데이터가 없습니다.")
+    st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
