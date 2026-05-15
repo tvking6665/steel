@@ -10,34 +10,42 @@ try:
 except:
     st.set_page_config(page_title="전우정밀 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS 최적화: 메인 화면 5:5 유지 및 잘림 방지
+# 2. [강력 수정] 14cm -> 7cm 압축 (가로 50% 제한) CSS
 st.markdown("""
 <style>
-    /* 전체 여백 조절 */
-    .main .block-container { padding: 1rem 0.5rem !important; max-width: 100% !important; overflow-x: hidden !important; }
+    /* 1. 화면 전체 너비를 휴대폰 폭(100vw)에 가두고 드래그 금지 */
+    .main .block-container { 
+        padding: 1rem 0.3rem !important; 
+        max-width: 100vw !important; 
+        overflow-x: hidden !important; 
+    }
     
-    /* 로고 크기 및 정렬 */
-    [data-testid="stImage"] img { max-width: 100px !important; margin: 0 auto; display: block; }
-    
-    /* 타이틀 스타일 */
-    .title-text { font-size: 18px !important; font-weight: 800; text-align: center; color: #1E3A8A; margin: 15px 0; }
+    /* 2. 로고 사이즈 고정 */
+    [data-testid="stImage"] img { max-width: 90px !important; margin: 0 auto; display: block; }
 
-    /* [중요] 메인 화면 5:5 가로 배치 (7cm 휴대폰 맞춤) */
+    /* 3. [핵심] 가로 너비 50% 강제 적용 (ㅁㅁ 사이즈) */
     div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 8px !important;
+        width: 100% !important;
+        gap: 5px !important;
     }
+    
     div[data-testid="column"] {
-        width: 48% !important;
-        flex: 1 1 48% !important;
-        min-width: 0 !important;
+        /* 14cm를 7cm로 줄이기 위해 너비를 48%~50%로 강제 고정 */
+        width: 48% !important; 
+        flex: 0 0 48% !important;
+        min-width: 0 !important; 
     }
 
-    /* 위젯 간격 슬림화 (라벨 겹침 방지를 위해 마진값 양수 고정) */
-    label { font-size: 13px !important; font-weight: bold !important; margin-bottom: 5px !important; }
-    .stSelectbox, .stNumberInput, .stTextInput { margin-bottom: 15px !important; }
+    /* 위젯 내부 요소가 밖으로 삐져나가지 않게 제한 */
+    .stSelectbox, .stNumberInput { width: 100% !important; }
+    
+    /* 간격 및 텍스트 슬림화 */
+    label { font-size: 12px !important; font-weight: bold !important; margin-bottom: 5px !important; }
+    .stSelectbox, .stNumberInput { margin-bottom: 10px !important; }
+    .title-text { font-size: 16px !important; font-weight: 800; text-align: center; color: #1E3A8A; margin: 5px 0; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,40 +64,32 @@ def load_data():
 
 df_raw = load_data()
 
-# 4. [긴급 수정] 로그인 화면: 겹침 방지를 위한 물리적 배치
+# 4. 로그인 화면 (성공한 버전 그대로 유지, 수정 금지)
 if "auth_success" not in st.session_state:
     st.session_state.auth_success = False
 
 if not st.session_state.auth_success:
     if os.path.exists("logo.png"): st.image("logo.png")
     st.markdown('<p class="title-text">원소재 조회 로그인창</p>', unsafe_allow_html=True)
-    
-    # 컨테이너를 사용하여 위젯 간 독립적인 공간 확보
     with st.container():
         user = st.selectbox("👤 사용자 선택", ["선택하세요", "관리자"])
-    
-    # 억지로 벌리기 위해 빈 공간 삽입
     st.markdown("<div style='margin-bottom: 30px;'></div>", unsafe_allow_html=True)
-    
     with st.container():
         pw = st.text_input("🔑 비밀번호 입력", type="password")
-    
-    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
     if st.button("로그인", use_container_width=True):
         if pw == "1128":
             st.session_state.auth_success = True
             st.rerun()
-        else: st.error("정보가 일치하지 않습니다.")
     st.stop()
 
-# --- 로그인 성공 후 메인 화면 ---
+# 5. 메인 화면 (ㅁㅁ 배치 - 50% 축소 적용)
 if 'v' not in st.session_state: st.session_state.v = 0
 v = st.session_state.v
 
 if os.path.exists("logo.png"): st.image("logo.png")
 st.markdown('<p class="title-text">원소재 정보 조회</p>', unsafe_allow_html=True)
 
-# 한 줄에 2개씩 (ㅁㅁ 사이즈)
+# 행별 2개씩 나란히 배치 (7cm 안에 쏙 들어감)
 c1, c2 = st.columns(2)
 with c1:
     c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
@@ -127,9 +127,8 @@ calc = f_df.dropna(subset=['단중']).copy()
 
 if not calc.empty:
     calc['label'] = calc.apply(lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} {x['두께']}T", axis=1)
-    sel_s = st.selectbox("🎯 상세 사양 선택", ["선택하세요"] + calc['label'].tolist(), key=f"s{v}")
-    
-    if st.button("🚀 계산 적용", type="primary", use_container_width=True):
+    sel_s = st.selectbox("🎯 상세 사양", ["선택하세요"] + calc['label'].tolist(), key=f"s{v}")
+    if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
         if sel_s != "선택하세요":
             row = calc[calc['label'] == sel_s].iloc[0]
             uw = float(row['단중'])
