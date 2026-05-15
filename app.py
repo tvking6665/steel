@@ -10,39 +10,43 @@ try:
 except:
     st.set_page_config(page_title="전우정밀 시스템", page_icon="📊", layout="centered")
 
-# 2. [가로 잘림 방지] 휴대폰 사이즈 맞춤 CSS
+# 2. [긴급 수정] 절반 사이즈(ㅁㅁ) 강제 고정 CSS
 st.markdown("""
 <style>
-    /* 화면 너비 고정 해제 및 자동 맞춤 */
+    /* 화면 터짐 방지 및 전체 너비 고정 */
     .main .block-container { 
-        padding: 1rem 0.5rem !important; 
-        max-width: 100% !important; 
-        overflow-x: hidden !important; 
+        padding: 0.5rem 0.5rem !important; 
+        max-width: 100% !important;
+        overflow-x: hidden !important;
     }
     
-    /* 로고 사이즈 최적화 */
+    /* 로고 사이즈 적정화 */
     [data-testid="stImage"] img {
         max-width: 100px !important;
         margin: 0 auto;
         display: block;
     }
 
-    /* [핵심] 가로 5:5 배치 & 잘림 방지 */
-    [data-testid="stHorizontalBlock"] {
+    /* [핵심] 그려주신 '후' 이미지처럼 가로 길이를 절반으로 강제 제한 */
+    div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        gap: 8px !important; /* 위젯 사이 간격 */
+        width: 100% !important;
+        gap: 5px !important;
     }
     
-    [data-testid="column"] {
-        flex: 1 1 50% !important; /* 정확히 절반씩 차지 */
-        min-width: 0 !important;   /* 중요: 최소 너비 해제해야 안 잘림 */
+    div[data-testid="column"] {
+        width: 50% !important; /* 정확히 절반 */
+        min-width: 48% !important; 
+        flex: 1 1 50% !important;
     }
 
-    /* 입력창 라벨 및 간격 조절 */
-    label { font-size: 13px !important; font-weight: bold !important; margin-bottom: -15px !important; }
-    .stSelectbox, .stNumberInput { margin-bottom: -10px !important; }
+    /* 위젯 내부 요소들이 삐져나가지 않게 조정 */
+    .stSelectbox, .stNumberInput { width: 100% !important; }
+    
+    /* 라벨 및 간격 슬림화 */
+    label { font-size: 12px !important; font-weight: bold !important; margin-bottom: -15px !important; }
     .title-text { font-size: 16px !important; font-weight: 800; text-align: center; color: #1E3A8A; margin: 10px 0; }
 </style>
 """, unsafe_allow_html=True)
@@ -63,7 +67,7 @@ def load_data():
 
 df_raw = load_data()
 
-# 4. 로그인 화면 (성공 확인된 버전)
+# 4. 로그인 화면 (성공한 버전 유지)
 if "auth_success" not in st.session_state: st.session_state.auth_success = False
 if not st.session_state.auth_success:
     if os.path.exists("logo.png"): st.image("logo.png")
@@ -74,17 +78,16 @@ if not st.session_state.auth_success:
         if pw == "1128": 
             st.session_state.auth_success = True
             st.rerun()
-        else: st.error("정보가 일치하지 않습니다.")
     st.stop()
 
-# 5. 메인 레이아웃 (휴대폰 화면 맞춤 5:5)
+# 5. 메인 화면 (그려주신 '후' 이미지 레이아웃 반영)
 if 'v' not in st.session_state: st.session_state.v = 0
 v = st.session_state.v
 
 if os.path.exists("logo.png"): st.image("logo.png")
 st.markdown('<p class="title-text">원소재 정보 조회</p>', unsafe_allow_html=True)
 
-# 1층: 고객사 & 프로젝트
+# [수정] 모든 행을 5:5(절반 크기)로 강제 배치
 c1, c2 = st.columns(2)
 with c1:
     c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
@@ -94,7 +97,6 @@ with c2:
     p_list = ['전체'] + sorted(p_df['프로젝트명'].dropna().unique().tolist())
     sel_p = st.selectbox("📂 프로젝트", p_list, key=f"p{v}")
 
-# 2층: 강종 & 두께
 c3, c4 = st.columns(2)
 with c3:
     m_df = p_df[p_df['프로젝트명'] == sel_p] if sel_p != '전체' else p_df
@@ -103,16 +105,14 @@ with c3:
 with c4:
     sel_t = st.number_input("📏 두께(T)", value=None, format="%.2f", key=f"t{v}")
 
-# 3층: 생산수량 & 발주수량
 c5, c6 = st.columns(2)
 with c5: qp = st.number_input("🏭 생산수량", min_value=0, step=1000, key=f"qp{v}")
 with c6: qo = st.number_input("📦 발주수량", min_value=0, step=1000, key=f"qo{v}")
 
-# 4층: Loss & 초기화
 c7, c8 = st.columns(2)
 with c7: ls = st.number_input("📉 Loss(%)", value=3.0, step=0.5, key=f"ls{v}")
 with c8:
-    st.write(" ") # 간격 맞춤
+    st.write(" ") # 높이 맞춤
     if st.button("🔄 초기화", use_container_width=True):
         st.session_state.v += 1; st.rerun()
 
@@ -133,9 +133,9 @@ if not calc.empty:
             uw = float(row['단중'])
             if qp > 0:
                 pkg = (uw * qp) * (1 + (ls/100))
-                st.success(f"🏭 생산 필요: {pkg:,.1f}kg ({pkg/1000:,.2f}t)")
+                st.success(f"🏭 생산: {pkg:,.1f}kg ({pkg/1000:,.2f}t)")
             if qo > 0:
                 okg = (uw * qo) * (1 + (ls/100))
-                st.success(f"📦 발주 필요: {okg:,.1f}kg ({okg/1000:,.2f}t)")
+                st.success(f"📦 발주: {okg:,.1f}kg ({okg/1000:,.2f}t)")
 else:
     st.warning("데이터 없음")
