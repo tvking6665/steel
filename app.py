@@ -10,15 +10,12 @@ try:
 except:
     st.set_page_config(page_title="원소재 정보 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS 스타일
+# 2. CSS 스타일 (제목 및 로고용)
 st.markdown("""
 <style>
     .main .block-container { padding: 0.5rem 0.8rem; }
     .company-name { font-size: 13px; font-weight: bold; color: #0047AB; margin-bottom: 2px; text-align: center; }
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
-    .result-text { font-size: 14px !important; line-height: 1.6; }
-    .result-value { font-size: 15px !important; font-weight: bold; color: #72ff8d; }
-    .loss-label { font-size: 13px; color: #ffbcbc; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -155,7 +152,6 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
-    # 버튼 5:5 배치
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
@@ -166,45 +162,38 @@ if not calc_ready.empty:
     if apply_btn:
         unit_w = float(selected_row['단중'])
         
-        # HTML 결과창 구성
-        summary_html = f"""
-        <div style="background-color: #1e2630; padding: 15px; border-radius: 8px; border: 1px solid #28a745;">
-            <p class="result-text">
-                • 고객사: {selected_row['고객사']}<br>
-                • 프로젝트: {selected_row['프로젝트명']}<br>
-                • 규격: {selected_row['강종명']} ({selected_row['두께']} * {selected_row['폭']})<br>
-                • 단중: <span class="result-value">{unit_w:.4f} kg</span><br>
-                <span class="loss-label">※ 적용 요약 (LOSS {loss_rate}%)</span>
-            </p>
-            <hr style="border: 0.1px solid #444; margin: 10px 0;">
-        """
-
+        # 결과 텍스트 구성 (마크다운 활용)
+        st.success(f"##### 📋 상세 정보")
+        
+        info_md = f"""
+- **고객사:** {selected_row['고객사']}
+- **프로젝트:** {selected_row['프로젝트명']}
+- **규격:** {selected_row['강종명']} ({selected_row['두께']} * {selected_row['폭']})
+- **단중:** `{unit_w:.4f} kg`
+- **※ 적용 요약 (LOSS {loss_rate}%)**
+---
+"""
         # 생산 예상수량 결과 (값이 있을 때만)
         if qty_in > 0:
             prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
             prod_ton = prod_kg / 1000
-            summary_html += f"""
-            <p class="result-text" style="margin-bottom:10px;">
-                🏭 <b>생산 예상수량 결과:</b><br>
-                <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA
-            </p>
-            """
+            info_md += f"🏭 **생산 예상수량 결과:** \n"
+            info_md += f"#### :green[`{prod_kg:,.1f} kg`] ({prod_ton:,.2f} ton) / {qty_in:,} EA  \n\n"
 
         # 발주 수량 결과 (값이 있을 때만)
         if order_qty_in > 0:
             order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
             order_ton = order_kg / 1000
-            summary_html += f"""
-            <p class="result-text">
-                📦 <b>발주 수량 결과:</b><br>
-                <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA
-            </p>
-            """
+            info_md += f"📦 **발주 수량 결과:** \n"
+            info_md += f"#### :green[`{order_kg:,.1f} kg`] ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
         
         if qty_in == 0 and order_qty_in == 0:
-            summary_html += '<p class="result-text">⚠️ 수량을 입력해주세요.</p>'
+            info_md += "⚠️ 수량을 입력해주세요."
 
-        summary_html += "</div>"
-        st.markdown(summary_html, unsafe_allow_html=True)
+        st.info(info_md)
 else:
     st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
+
+if st.sidebar.button("로그아웃"):
+    st.session_state.auth_success = False
+    st.rerun()
