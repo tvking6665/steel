@@ -18,8 +18,6 @@ st.markdown("""
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
     .result-text { font-size: 14px !important; line-height: 1.6; }
     .result-value { font-size: 15px !important; font-weight: bold; color: #72ff8d; }
-    /* 초기화 버튼 스타일 */
-    div[data-testid="stSidebar"] button { width: 100%; color: #ff4b4b; border-color: #ff4b4b; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,9 +61,8 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# --- [새 기능] 초기화 함수 ---
+# 초기화 함수
 def reset_inputs():
-    # 세션에 저장된 모든 입력 관련 키를 삭제하여 초기화
     keys_to_reset = ["customer_box", "mat_box", "thick_box", "spec_select", "prod_qty", "order_qty"]
     for key in keys_to_reset:
         if key in st.session_state:
@@ -84,16 +81,13 @@ def on_spec_change():
         except:
             pass
 
-# 사이드바 버튼 (로그아웃 & 초기화)
+# 사이드바 (로그아웃만 남김)
 with st.sidebar:
-    st.markdown("### ⚙️ 설정")
-    if st.button("🔄 전체 입력 초기화"):
-        reset_inputs()
     if st.button("🚪 로그아웃"):
         st.session_state.auth_success = False
         st.rerun()
 
-# 메인 헤더
+# 헤더
 h1, h2 = st.columns([1, 5])
 with h1:
     if os.path.exists("logo.png"): st.image("logo.png", width=40)
@@ -153,7 +147,17 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
-    if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
+    # [핵심 수정] 버튼을 5:5 비율로 배치
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
+    with btn_col2:
+        reset_btn = st.button("🔄 입력 초기화", use_container_width=True)
+
+    if reset_btn:
+        reset_inputs()
+
+    if apply_btn:
         unit_w = float(selected_row['단중'])
         prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
         order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
@@ -174,7 +178,6 @@ if not calc_ready.empty:
         """
         if qty_in > 0:
             summary_html += f"""<p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>"""
-        
         if order_qty_in > 0:
             summary_html += f"""<p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>"""
         
