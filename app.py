@@ -10,7 +10,7 @@ try:
 except:
     st.set_page_config(page_title="원소재 정보 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS
+# 2. CSS 스타일
 st.markdown("<style>.main .block-container { padding: 0.5rem 0.8rem; } .company-name { font-size: 13px; font-weight: bold; color: #0047AB; text-align: center; } .app-title { font-size: 18px !important; font-weight: 800; text-align: center; }</style>", unsafe_allow_html=True)
 
 # 3. 데이터 로드
@@ -29,7 +29,7 @@ def load_data():
 
 df_raw = load_data()
 
-# 4. 로그인
+# 4. 로그인 체크
 if "auth_success" not in st.session_state: st.session_state.auth_success = False
 if not st.session_state.auth_success:
     st.markdown('<p class="app-title">원소재 시스템 로그인</p>', unsafe_allow_html=True)
@@ -42,59 +42,50 @@ if not st.session_state.auth_success:
         else: st.error("실패")
     st.stop()
 
-# 5. 상태 관리
+# 5. 초기화 기능
 if 'v' not in st.session_state: st.session_state.v = 0
-if 'c' not in st.session_state: st.session_state.c = "전체"
-if 'p' not in st.session_state: st.session_state.p = "전체"
-if 'm' not in st.session_state: st.session_state.m = "전체"
-if 't' not in st.session_state: st.session_state.t = None
-
 def reset():
     st.session_state.v += 1
-    st.session_state.c, st.session_state.p, st.session_state.m, st.session_state.t = "전체", "전체", "전체", None
-    if 'last' in st.session_state: del st.session_state.last
+    st.session_state.apply_clicked = False
     st.rerun()
 
-# 6. UI 입력
+# 6. UI 입력 영역
 ver = st.session_state.v
 st.markdown('<p class="company-name">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
 
 r0c1, r0c2 = st.columns(2)
-c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
-with r0c1: 
-    sel_c = st.selectbox("🤝 고객사", c_list, index=c_list.index(st.session_state.c) if st.session_state.c in c_list else 0, key=f"c{ver}")
-    st.session_state.c = sel_c
-
-p_df = df_raw[df_raw['고객사'] == sel_c] if sel_c != '전체' else df_raw
-p_list = ['전체'] + sorted(p_df['프로젝트명'].dropna().unique().tolist())
-with r0c2: 
-    sel_p = st.selectbox("📂 프로젝트", p_list, index=p_list.index(st.session_state.p) if st.session_state.p in p_list else 0, key=f"p{ver}")
-    st.session_state.p = sel_p
+with r0c1:
+    c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
+    sel_c = st.selectbox("🤝 고객사", c_list, key=f"c{ver}")
+with r0c2:
+    p_df = df_raw[df_raw['고객사'] == sel_c] if sel_c != '전체' else df_raw
+    p_list = ['전체'] + sorted(p_df['프로젝트명'].dropna().unique().tolist())
+    sel_p = st.selectbox("📂 프로젝트", p_list, key=f"p{ver}")
 
 r1c1, r1c2 = st.columns(2)
-m_df = p_df[p_df['프로젝트명'] == sel_p] if sel_p != '전체' else p_df
-m_list = ['전체'] + sorted(m_df['강종명'].dropna().unique().tolist())
-with r1c1: 
-    sel_m = st.selectbox("✨ 강종", m_list, index=m_list.index(st.session_state.m) if st.session_state.m in m_list else 0, key=f"m{ver}")
-    st.session_state.m = sel_m
-with r1c2: 
-    sel_t = st.number_input("📏 두께", value=st.session_state.t, format="%.2f", key=f"t{ver}")
-    st.session_state.t = sel_t
+with r1c1:
+    m_df = p_df[p_df['프로젝트명'] == sel_p] if sel_p != '전체' else p_df
+    m_list = ['전체'] + sorted(m_df['강종명'].dropna().unique().tolist())
+    sel_m = st.selectbox("✨ 강종", m_list, key=f"m{ver}")
+with r1c2:
+    sel_t = st.number_input("📏 두께", value=None, format="%.2f", key=f"t{ver}")
 
 r2c1, r2c2 = st.columns(2)
-with r2c1: qp = st.number_input("생산수량", min_value=0, step=1000, key=f"qp{ver}")
-with r2c2: qo = st.number_input("발주수량", min_value=0, step=1000, key=f"qo{ver}")
-ls = st.number_input("Loss(%)", value=3.0, step=0.5, key=f"ls{ver}")
+with r2c1: qp = st.number_input("생산수량(EA)", min_value=0, step=1000, key=f"qp{ver}")
+with r2c2: qo = st.number_input("발주수량(EA)", min_value=0, step=1000, key=f"qo{ver}")
+ls = st.number_input("Loss율(%)", value=3.0, step=0.5, key=f"ls{ver}")
 
 st.divider()
 colb1, colb2 = st.columns(2)
-with colb1: apply = st.button("🚀 계산 적용", type="primary", use_container_width=True)
-with colb2: 
+with colb1:
+    if st.button("🚀 계산 적용", type="primary", use_container_width=True):
+        st.session_state.apply_clicked = True
+with colb2:
     if st.button("🔄 초기화", use_container_width=True): reset()
 
-# 7. 사양 선택 및 강제 연동
+# 7. 사양 선택 및 결과
 f_df = m_df[m_df['강종명'] == sel_m] if sel_m != "전체" else m_df
-if sel_t: f_df = f_df[f_df['두께'] == sel_t]
+if sel_thick := sel_t: f_df = f_df[f_df['두께'] == sel_thick]
 calc = f_df.dropna(subset=['단중']).copy()
 
 if not calc.empty:
@@ -102,21 +93,17 @@ if not calc.empty:
     opts = ["선택하세요"] + calc['label'].tolist()
     sel_s = st.selectbox("🎯 상세 사양 선택", opts, key=f"s{ver}")
 
-    # [중요] 선택 즉시 세션 강제 주입 및 리런
-    if sel_s != "선택하세요" and sel_s != st.session_state.get('last'):
-        row = calc[calc['label'] == sel_s].iloc[0]
-        st.session_state.c, st.session_state.p, st.session_state.m, st.session_state.t = row['고객사'], row.get('프로젝트명','전체'), row['강종명'], float(row['두께'])
-        st.session_state.last = sel_s
-        st.rerun()
-
-    if apply and sel_s != "선택하세요":
+    if st.session_state.get('apply_clicked') and sel_s != "선택하세요":
         row = calc[calc['label'] == sel_s].iloc[0]
         uw = float(row['단중'])
+        
+        # [수정] 톤(ton) 환산 로직 복구 및 문구 정렬
         if qp > 0:
             pkg = (uw * qp) * (1 + (ls/100))
-            st.success(f"🏭 **생산 결과:**\n#### 구매필요: :green[`{pkg:,.1f} kg`] / 생산수량: `{qp:,} EA`")
+            st.success(f"🏭 **생산 예상수량 결과:**\n#### 구매필요량 : :green[`{pkg:,.1f} kg`] ({pkg/1000:,.2f} ton) / 생산필요수량 : `{qp:,} EA`")
         if qo > 0:
             okg = (uw * qo) * (1 + (ls/100))
-            st.success(f"📦 **발주 결과:**\n#### 구매필요: :green[`{okg:,.1f} kg`] / 발주량: `{qo:,} EA`")
-        st.info(f"📋 **상세:** {row['고객사']} / {row['강종명']} ({row['두께']}*{row['폭']}) / 단중: `{uw:.4f}`")
+            st.success(f"📦 **발주 수량 결과:**\n#### 구매필요량 : :green[`{okg:,.1f} kg`] ({okg/1000:,.2f} ton) / 발주량 : `{qo:,} EA`")
+            
+        st.info(f"📋 **상세 정보**\n- 고객사: {row['고객사']} / 프로젝트: {row.get('프로젝트명','-')}\n- 규격: {row['강종명']} ({row['두께']}*{row['폭']}) / 단중: `{uw:.4f} kg` / LOSS: {ls}%")
 else: st.warning("데이터 없음")
