@@ -10,7 +10,7 @@ try:
 except:
     st.set_page_config(page_title="원소재 정보 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS 스타일 (제목 및 로고용)
+# 2. CSS 스타일
 st.markdown("""
 <style>
     .main .block-container { padding: 0.5rem 0.8rem; }
@@ -163,9 +163,8 @@ if not calc_ready.empty:
         unit_w = float(selected_row['단중'])
         
         # 결과 텍스트 구성 (마크다운 활용)
-        st.success(f"##### 📋 상세 정보")
-        
         info_md = f"""
+### 📋 상세 정보
 - **고객사:** {selected_row['고객사']}
 - **프로젝트:** {selected_row['프로젝트명']}
 - **규격:** {selected_row['강종명']} ({selected_row['두께']} * {selected_row['폭']})
@@ -173,14 +172,14 @@ if not calc_ready.empty:
 - **※ 적용 요약 (LOSS {loss_rate}%)**
 ---
 """
-        # 생산 예상수량 결과 (값이 있을 때만)
+        # 생산 예상수량 결과
         if qty_in > 0:
             prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
             prod_ton = prod_kg / 1000
             info_md += f"🏭 **생산 예상수량 결과:** \n"
             info_md += f"#### :green[`{prod_kg:,.1f} kg`] ({prod_ton:,.2f} ton) / {qty_in:,} EA  \n\n"
 
-        # 발주 수량 결과 (값이 있을 때만)
+        # 발주 수량 결과
         if order_qty_in > 0:
             order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
             order_ton = order_kg / 1000
@@ -190,6 +189,7 @@ if not calc_ready.empty:
         if qty_in == 0 and order_qty_in == 0:
             info_md += "⚠️ 수량을 입력해주세요."
 
+        # 하나의 박스 안에 모든 정보 표시
         st.info(info_md)
 else:
     st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
