@@ -19,39 +19,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 로그인 체크 및 초기 세션 설정
-if "auth_success" not in st.session_state:
-    st.session_state.auth_success = False
-
-def init_session_state():
-    st.session_state.customer_box = "전체"
-    st.session_state.project_box = "전체"
-    st.session_state.mat_box = "전체"
-    st.session_state.thick_box = None
-    st.session_state.prod_qty = 0
-    st.session_state.order_qty = 0
-    st.session_state.apply_clicked = False # 계산 버튼 클릭 상태 관리
-    if "spec_select" in st.session_state:
-        del st.session_state.spec_select
-
-if not st.session_state.auth_success:
-    col_l, col_m, col_r = st.columns([1, 1, 1])
-    with col_m:
-        if os.path.exists("logo.png"): st.image("logo.png", width=70)
-    st.markdown('<p class="company-name">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
-    st.markdown('<p class="app-title">원소재 시스템 로그인</p>', unsafe_allow_html=True)
-    user_list = ["선택하세요", "관리자"]
-    selected_user = st.selectbox("사용자 선택", user_list)
-    input_pw = st.text_input("비밀번호", type="password")
-    if st.button("로그인"):
-        if selected_user == "관리자" and input_pw == "1128":
-            st.session_state.auth_success = True
-            init_session_state()
-            st.rerun()
-        else: st.error("정보가 올바르지 않습니다.")
-    st.stop()
-
-# 4. 데이터 로드
+# 3. 데이터 로드
 @st.cache_data(ttl=600)
 def load_data():
     file_name = "data.xlsx"
@@ -70,31 +38,56 @@ def load_data():
     return None
 
 df_raw = load_data()
-if df_raw is None:
-    st.error("data.xlsx 파일을 찾을 수 없습니다.")
+
+# 4. 로그인 체크
+if "auth_success" not in st.session_state:
+    st.session_state.auth_success = False
+
+if not st.session_state.auth_success:
+    col_l, col_m, col_r = st.columns([1, 1, 1])
+    with col_m:
+        if os.path.exists("logo.png"): st.image("logo.png", width=70)
+    st.markdown('<p class="company-name">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
+    st.markdown('<p class="app-title">원소재 시스템 로그인</p>', unsafe_allow_html=True)
+    selected_user = st.selectbox("사용자 선택", ["선택하세요", "관리자"])
+    input_pw = st.text_input("비밀번호", type="password")
+    if st.button("로그인"):
+        if selected_user == "관리자" and input_pw == "1128":
+            st.session_state.auth_success = True
+            st.rerun()
+        else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-def reset_inputs():
-    init_session_state()
+# 5. [중요] 초기화 및 상태 관리
+# 에러를 방지하기 위해 위젯 번호를 바꿔 전체를 리셋시키는 방식 사용
+if 'form_version' not in st.session_state:
+    st.session_state.form_version = 0
+
+def reset_all():
+    # 위젯 버전 번호를 올려서 모든 위젯을 강제로 초기화시킴 (가장 안전한 에러 방지책)
+    st.session_state.form_version += 1
+    st.session_state.apply_clicked = False
     st.rerun()
 
+# 연동용 콜백 함수
 def on_spec_change():
-    if "spec_select" in st.session_state and st.session_state.spec_select != "선택하세요":
-        try:
-            selected_label = st.session_state.spec_select
-            matched_row = df_raw.copy()
-            matched_row['label_temp'] = matched_row.apply(
-                lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
-            )
-            target = matched_row[matched_row['label_temp'] == selected_label].iloc[0]
-            st.session_state.customer_box = target['고객사']
-            st.session_state.project_box = target.get('프로젝트명','전체')
-            st.session_state.mat_box = target['강종명']
-            st.session_state.thick_box = float(target['두께'])
-            st.session_state.apply_clicked = False # 사양 변경 시 결과창 가리기
-        except: pass
+    if f"spec_select_{st.session_state.form_version}" in st.session_state:
+        label = st.session_state[f"spec_select_{st.session_state.form_version}"]
+        if label != "선택하세요":
+            try:
+                matched_row = df_raw.copy()
+                matched_row['label_temp'] = matched_row.apply(
+                    lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
+                )
+                target = matched_row[matched_row['label_temp'] == label].iloc[0]
+                # 세션에 값 저장 (위젯 key와 분리하여 저장)
+                st.session_state.cur_customer = target['고객사']
+                st.session_state.cur_project = target.get('프로젝트명','전체')
+                st.session_state.cur_mat = target['강종명']
+                st.session_state.cur_thick = float(target['두께'])
+            except: pass
 
-# 헤더
+# 메인 UI 헤더
 h1, h2 = st.columns([1, 5])
 with h1:
     if os.path.exists("logo.png"): st.image("logo.png", width=40)
@@ -102,98 +95,84 @@ with h2:
     st.markdown('<p class="company-name" style="text-align:left; margin-bottom:0;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
     st.markdown('<p class="app-title" style="text-align:left; font-size:18px !important;">원소재 정보 시스템</p>', unsafe_allow_html=True)
 
-# 5. 입력 필터링
+# 6. 입력 영역 (form_version을 key에 포함시켜 에러 방지)
+v = st.session_state.form_version
+
 r0c1, r0c2 = st.columns(2)
 with r0c1:
-    customer_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
-    st.selectbox("🤝 고객사 선택", options=customer_list, key="customer_box")
+    c_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
+    # 연동된 값이 있으면 index를 찾고, 없으면 0(전체)
+    c_idx = c_list.index(st.session_state.get('cur_customer', '전체')) if st.session_state.get('cur_customer') in c_list else 0
+    selected_customer = st.selectbox("🤝 고객사 선택", options=c_list, index=c_idx, key=f"c_box_{v}")
 
 with r0c2:
-    project_df = df_raw.copy()
-    if st.session_state.customer_box != '전체':
-        project_df = project_df[project_df['고객사'] == st.session_state.customer_box]
-    project_list = ['전체'] + sorted(project_df['프로젝트명'].dropna().unique().tolist()) if '프로젝트명' in project_df.columns else ['전체']
-    st.selectbox("📂 프로젝트명", options=project_list, key="project_box")
+    project_df = df_raw[df_raw['고객사'] == selected_customer] if selected_customer != '전체' else df_raw
+    p_list = ['전체'] + sorted(project_df['프로젝트명'].dropna().unique().tolist())
+    p_idx = p_list.index(st.session_state.get('cur_project', '전체')) if st.session_state.get('cur_project') in p_list else 0
+    selected_project = st.selectbox("📂 프로젝트명", options=p_list, index=p_idx, key=f"p_box_{v}")
 
 r1c1, r1c2 = st.columns(2)
 with r1c1:
-    res = df_raw.copy()
-    if st.session_state.customer_box != '전체':
-        res = res[res['고객사'] == st.session_state.customer_box]
-    if st.session_state.project_box != '전체':
-        res = res[res['프로젝트명'] == st.session_state.project_box]
-    available_mats = ["전체"] + sorted(res['강종명'].dropna().unique().tolist())
-    st.selectbox("✨ 강종명 선택", options=available_mats, key="mat_box")
+    res = project_df[project_df['프로젝트명'] == selected_project] if selected_project != '전체' else project_df
+    m_list = ['전체'] + sorted(res['강종명'].dropna().unique().tolist())
+    m_idx = m_list.index(st.session_state.get('cur_mat', '전체')) if st.session_state.get('cur_mat') in m_list else 0
+    selected_mat = st.selectbox("✨ 강종명 선택", options=m_list, index=m_idx, key=f"m_box_{v}")
 with r1c2:
-    st.number_input("📏 두께 (T)", value=None, placeholder="", format="%.2f", key="thick_box")
+    thick_val = st.session_state.get('cur_thick')
+    selected_thick = st.number_input("📏 두께 (T)", value=thick_val, placeholder="", format="%.2f", key=f"t_box_{v}")
 
 r2c1, r2c2 = st.columns(2)
-with r2c1: 
-    st.number_input("생산 예상수량 (EA)", min_value=0, step=1000, key="prod_qty")
-with r2c2: 
-    st.number_input("발주 수량 (EA)", min_value=0, step=1000, key="order_qty")
-
-loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5, key="loss_rate_input")
+with r2c1: q_prod = st.number_input("생산 예상수량 (EA)", min_value=0, step=1000, key=f"q_p_{v}")
+with r2c2: q_order = st.number_input("발주 수량 (EA)", min_value=0, step=1000, key=f"q_o_{v}")
+loss = st.number_input("Loss율 (%)", value=3.0, step=0.5, key=f"loss_{v}")
 
 st.divider()
 
-# 6. 상세 사양 선택
-filtered_res = res.copy()
-if st.session_state.mat_box != "전체":
-    filtered_res = filtered_res[filtered_res['강종명'] == st.session_state.mat_box]
-if st.session_state.thick_box is not None:
-    filtered_res = filtered_res[filtered_res['두께'] == st.session_state.thick_box]
+# 7. 상세 사양 선택
+filtered = res[res['강종명'] == selected_mat] if selected_mat != "전체" else res
+if selected_thick is not None:
+    filtered = filtered[filtered['두께'] == selected_thick]
 
-calc_ready = filtered_res.dropna(subset=['단중']).copy() if '단중' in filtered_res.columns else pd.DataFrame()
+calc_ready = filtered.dropna(subset=['단중']).copy() if '단중' in filtered.columns else pd.DataFrame()
 
 if not calc_ready.empty:
     calc_ready['label'] = calc_ready.apply(
         lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
     )
+    s_options = ["선택하세요"] + calc_ready['label'].tolist()
+    st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=s_options, key=f"spec_select_{v}", on_change=on_spec_change)
     
-    spec_options = ["선택하세요"] + calc_ready['label'].tolist()
-    st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=spec_options, key="spec_select", on_change=on_spec_change)
-    
-    btn_col1, btn_col2 = st.columns(2)
-    with btn_col1:
-        if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
-            st.session_state.apply_clicked = True
-    with btn_col2:
+    b1, b2 = st.columns(2)
+    with b1: apply_clicked = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
+    with b2: 
         if st.button("🔄 입력 초기화", use_container_width=True):
-            reset_inputs()
+            reset_all()
 
-    # 계산 결과 출력부 (클릭 시에만 노출)
-    if st.session_state.get('apply_clicked') and st.session_state.spec_select != "선택하세요":
-        target_row = calc_ready[calc_ready['label'] == st.session_state.spec_select].iloc[0]
-        unit_w = float(target_row['단중'])
+    # 결과창 출력
+    if apply_clicked and st.session_state[f"spec_select_{v}"] != "선택하세요":
+        row = calc_ready[calc_ready['label'] == st.session_state[f"spec_select_{v}"]].iloc[0]
+        u_w = float(row['단중'])
         
-        # [수정] 상단 결과창 문구 변경
-        result_md = ""
-        if st.session_state.prod_qty > 0:
-            prod_kg = (unit_w * st.session_state.prod_qty) * (1 + (loss_rate / 100))
-            result_md += f"🏭 **생산 예상수량 결과:** \n #### :green[`{prod_kg:,.1f} kg`] ({prod_kg/1000:,.2f} ton) / {st.session_state.prod_qty:,} EA  \n\n"
-        if st.session_state.order_qty > 0:
-            order_kg = (unit_w * st.session_state.order_qty) * (1 + (loss_rate / 100))
-            # 문구 변경: 구매필요량 / 발주량
-            result_md += f"📦 **발주 수량 결과:** \n #### 구매필요량 : :green[`{order_kg:,.1f} kg`] ({order_kg/1000:,.2f} ton) / 발주량 : `{st.session_state.order_qty:,} EA`"
+        res_md = ""
+        if q_prod > 0:
+            p_kg = (u_w * q_prod) * (1 + (loss / 100))
+            res_md += f"🏭 **생산 예상수량 결과:** \n #### :green[`{p_kg:,.1f} kg`] ({p_kg/1000:,.2f} ton) / {q_prod:,} EA  \n\n"
+        if q_order > 0:
+            o_kg = (u_w * q_order) * (1 + (loss / 100))
+            # [요청 사항 반영] 문구 수정
+            res_md += f"📦 **발주 수량 결과:** \n #### 구매필요량 : :green[`{o_kg:,.1f} kg`] ({o_kg/1000:,.2f} ton) / 발주량 : `{q_order:,} EA`"
         
-        if st.session_state.prod_qty == 0 and st.session_state.order_qty == 0:
-            result_md = "⚠️ 수량을 입력해주세요."
-        
-        st.success(result_md)
+        if q_prod == 0 and q_order == 0: res_md = "⚠️ 수량을 입력해주세요."
+        st.success(res_md)
 
-        # 하단 상세 정보
-        info_md = f"""
+        st.info(f"""
 ### 📋 상세 정보
-- **고객사:** {target_row['고객사']}
-- **프로젝트:** {target_row.get('프로젝트명','-')}
-- **규격:** {target_row['강종명']} ({target_row.get('두께','-')} * {target_row.get('폭','-')})
-- **단중:** `{unit_w:.4f} kg`
-- **※ 적용 요약 (LOSS {loss_rate}%)**
-"""
-        st.info(info_md)
-    elif st.session_state.get('apply_clicked'):
-        st.warning("상세 사양을 먼저 선택해주세요.")
+- **고객사:** {row['고객사']}
+- **프로젝트:** {row.get('프로젝트명','-')}
+- **규격:** {row['강종명']} ({row['두께']} * {row['폭']})
+- **단중:** `{u_w:.4f} kg`
+- **※ 적용 요약 (LOSS {loss}%)**
+""")
 else:
     st.warning("조건에 맞는 데이터가 없습니다. [입력 초기화] 후 다시 시도해 주세요.")
 
