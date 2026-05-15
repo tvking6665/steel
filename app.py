@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from PIL import Image
 
-# 1. 앱 페이지 설정 (휴대폰 아이콘 및 로고 설정)
+# 1. 앱 페이지 설정
 try:
     favicon = Image.open("logo.png")
     st.set_page_config(
@@ -18,12 +18,18 @@ except:
         layout="centered"
     )
 
-# 2. CSS 스타일 최적화 (로그인 박스 스타일 추가)
+# 2. CSS 스타일 최적화 (모바일 글자 크기 조정 및 로그인 박스 개선)
 st.markdown("""
 <style>
-    .main .block-container { padding: 1rem 0.5rem; }
-    .company-name { font-size: 14px; font-weight: bold; color: #0047AB; margin-bottom: 2px; }
-    .app-title { font-size: 22px; font-weight: 800; margin-top: 0px; margin-bottom: 10px; }
+    /* 전체 모바일 여백 조정 */
+    .main .block-container { padding: 1rem 1rem; }
+    
+    /* 회사명 및 제목 크기 최적화 */
+    .company-name { font-size: 14px; font-weight: bold; color: #0047AB; margin-bottom: 5px; text-align: center; }
+    .app-title { font-size: 20px !important; font-weight: 800; text-align: center; margin-bottom: 20px; }
+    
+    /* 로그인 라벨 글자 크기 */
+    div[data-testid="stMarkdownContainer"] p { font-size: 15px !important; }
     
     /* 버튼 스타일 */
     div.stButton > button:first-child {
@@ -31,12 +37,12 @@ st.markdown("""
         background-color: #1c83e1;
         color: white;
         border-radius: 8px;
-        height: 3em;
+        height: 3.5em;
         font-weight: bold;
-        margin-top: 10px;
+        margin-top: 15px;
     }
     
-    /* 조회 결과 박스 */
+    /* 조회 결과 및 요약 박스 */
     .search-result-box {
         background-color: rgba(255, 255, 255, 0.05);
         border: 1.5px solid #1c83e1;
@@ -44,10 +50,10 @@ st.markdown("""
         border-radius: 8px;
         color: #58a6ff !important;
         font-weight: bold;
+        font-size: 14px;
         margin: 10px 0px;
     }
     
-    /* 최종 요약 박스 */
     .calc-box {
         background-color: rgba(40, 167, 69, 0.15);
         border: 2px solid #28a745;
@@ -55,42 +61,50 @@ st.markdown("""
         border-radius: 8px;
         color: #72ff8d !important;
         font-weight: bold;
-        font-size: 16px;
+        font-size: 15px;
         margin-top: 15px;
+        line-height: 1.6;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# [추가] 로그인 관리 로직
+# [수정] 로그인 관리 로직 (로고 배치 및 글자 크기 반영)
 # ---------------------------------------------------------
 def check_login():
     if "auth_success" not in st.session_state:
         st.session_state.auth_success = False
 
     if not st.session_state.auth_success:
-        st.markdown('<p class="company-name">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
-        st.markdown('<h1 class="app-title">🔐 원소재 시스템 로그인</h1>', unsafe_allow_html=True)
+        # 로고 중앙 배치
+        col_l, col_m, col_r = st.columns([1, 1, 1])
+        with col_m:
+            if os.path.exists("logo.png"):
+                st.image("logo.png", width=80)
         
-        with st.container():
-            user_list = ["선택하세요", "관리자"]
-            selected_user = st.selectbox("사용자 선택", user_list)
-            input_pw = st.text_input("비밀번호", type="password")
-            
-            if st.button("로그인"):
-                if selected_user == "관리자" and input_pw == "1128":
-                    st.session_state.auth_success = True
-                    st.rerun()
-                elif selected_user == "선택하세요":
-                    st.warning("사용자를 선택해주세요.")
-                else:
-                    st.error("비밀번호가 틀렸습니다.")
+        st.markdown('<p class="company-name">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
+        st.markdown('<p class="app-title">원소재 정보 시스템 로그인</p>', unsafe_allow_html=True)
+        
+        # 로그인 입력창 (너비 조정)
+        user_list = ["선택하세요", "관리자"]
+        selected_user = st.selectbox("사용자 선택", user_list)
+        input_pw = st.text_input("비밀번호", type="password", placeholder="비밀번호를 입력하세요")
+        
+        if st.button("로그인"):
+            if selected_user == "관리자" and input_pw == "1128":
+                st.session_state.auth_success = True
+                st.rerun()
+            elif selected_user == "선택하세요":
+                st.warning("사용자를 선택해주세요.")
+            else:
+                st.error("비밀번호가 틀렸습니다.")
         return False
     return True
 
-# 로그인 통과 시에만 아래 코드 실행
+# 로그인 통과 시 메인 화면 실행
 if check_login():
-    # 로그아웃 버튼 (사이드바)
+    # 사이드바 로그아웃
+    st.sidebar.markdown(f"**{st.session_state.get('user_name', '관리자')}**님 접속 중")
     if st.sidebar.button("로그아웃"):
         st.session_state.auth_success = False
         st.rerun()
@@ -118,16 +132,16 @@ if check_login():
 
     df = load_data()
 
-    # 4. 상단 헤더 영역
+    # 메인 상단 헤더
     h_col1, h_col2 = st.columns([1, 4])
     with h_col1:
         if os.path.exists("logo.png"):
-            st.image("logo.png", width=60)
+            st.image("logo.png", width=50)
     with h_col2:
-        st.markdown('<p class="company-name">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
-        st.markdown('<a href="http://mes.jwjm.com/bang.asp" target="_blank" style="text-decoration:none; font-size:12px; color:#E60012; font-weight:bold;">📊 실시간 가동 현황판</a>', unsafe_allow_html=True)
+        st.markdown('<p class="company-name" style="text-align:left;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
+        st.markdown('<a href="http://mes.jwjm.com/bang.asp" target="_blank" style="text-decoration:none; font-size:11px; color:#E60012; font-weight:bold;">📊 실시간 가동 현황판</a>', unsafe_allow_html=True)
 
-    st.markdown('<h1 class="app-title">원소재 정보 시스템</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="app-title" style="text-align:left; font-size:22px !important;">원소재 정보 시스템</p>', unsafe_allow_html=True)
 
     if df is not None:
         # 5. 입력 및 필터 영역
@@ -175,9 +189,39 @@ if check_login():
                 def make_label(x):
                     t = get_val(x, ['두께','두께(T)','T'])
                     w = get_val(x, ['폭','폭(W)','W','소재폭'])
-                    extra = get_val(x, ['기타 정보 및 사양', '기타정보', '비고'])
                     cust = get_val(x, ['고객사'])
-                    return f"[{cust}] {x['소재명']} (두께:{t} / 폭:{w} / 단중:{x['제품 단중']}) - {extra}"
+                    return f"[{cust}] {x['소재명']} (T:{t} / W:{w} / 단중:{x['제품 단중']})"
 
                 calc_ready['label'] = calc_ready.apply(make_label, axis=1)
-                selected_label = st.selectbox("🎯 정확한 상세 규격 선택", options=calc_ready['label'].tolist())
+                selected_label = st.selectbox("🎯 상세 규격 선택", options=calc_ready['label'].tolist())
+                selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
+                
+                if st.button("✅ 설정 내용 적용"):
+                    if qty_in > 0:
+                        net_unit_w = float(selected_row['제품 단중'])
+                        total_net_kg = net_unit_w * qty_in
+                        total_gross_kg = total_net_kg * (1 + (loss_rate / 100))
+                        total_gross_ton = total_gross_kg / 1000
+                        
+                        st.markdown(f"""
+                        <div class="calc-box">
+                            📋 최종 적용 요약 (Loss {loss_rate}% 반영)<br>
+                            - 고객사: {get_val(selected_row, ['고객사'])}<br>
+                            - 규격: {selected_row['소재명']}<br>
+                            - 제품 단중: {net_unit_w} kg<br>
+                            - 예상 수량: {qty_in:,} EA<br><br>
+                            - 📦 순수 소요량: {total_net_kg:,.0f} kg<br>
+                            - 🚚 **총 구매 예정량: {total_gross_kg:,.0f} kg ({total_gross_ton:,.1f} ton)**
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.warning("수량을 입력해주세요.")
+            else:
+                st.info("💡 단중 정보가 없습니다.")
+
+            with st.expander("📊 상세 시트 보기"):
+                st.table(res.astype(str).replace('nan', '-'))
+        else:
+            st.warning("데이터가 없습니다.")
+    else:
+        st.error("data.xlsx 파일을 확인해주세요.")
