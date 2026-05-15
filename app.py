@@ -16,14 +16,11 @@ st.markdown("""
     .main .block-container { padding: 0.5rem 0.8rem; }
     .company-name { font-size: 13px; font-weight: bold; color: #0047AB; margin-bottom: 2px; text-align: center; }
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
-    
     div[data-testid="stMarkdownContainer"] p { font-size: 14px !important; margin-bottom: -5px; }
-    
     div.stButton > button:first-child {
         width: 100%; background-color: #1c83e1; color: white;
         border-radius: 8px; height: 3.5em; font-weight: bold; margin-top: 10px;
     }
-    
     .calc-box {
         background-color: rgba(40, 167, 69, 0.15); border: 2px solid #28a745;
         padding: 12px; border-radius: 8px; color: #72ff8d !important;
@@ -100,4 +97,59 @@ if check_login():
         with r2c1: qty_in = st.number_input("생산 예상수량 (EA)", min_value=0, value=0, step=1000)
         with r2c2: order_qty_in = st.number_input("발주 수량 (EA)", min_value=0, value=0, step=1000)
         
-        # Loss율은 가로 전체 너비로 배치 (또는 필요
+        loss_rate = st.number_input("Loss율 (%)", min_value=0.0, max_value=50.0, value=3.0, step=0.5)
+
+        res = df.copy()
+        if selected_customer != '전체': res = res[res['고객사'] == selected_customer]
+        if name_in: res = res[res['소재명'].astype(str).str.contains(name_in, case=False, na=False)]
+        if thick_in:
+            t_col_name = next((c for c in res.columns if c in ['두께', '두께(T)', 'T']), '두께')
+            try: res = res[res[t_col_name].astype(float) == float(thick_in)]
+            except: pass
+
+        st.divider()
+
+        # [중요] 필터링 결과가 있을 때만 아래 기능을 보여줌
+        if not res.empty:
+            calc_ready = res.dropna(subset=['제품 단중']).copy()
+            
+            if not calc_ready.empty:
+                def make_label(x):
+                    t = x.get('두께', x.get('두께(T)', x.get('T', '-')))
+                    w = x.get('폭', x.get('폭(W)', x.get('W', x.get('소재폭', '-'))))
+                    return f"[{x['고객사']}] {x['소재명']} ({t} * {w}) / {x['제품 단중']:.4f}"
+
+                calc_ready['label'] = calc_ready.apply(make_label, axis=1)
+                selected_label = st.selectbox("🎯 상세 규격 선택", options=calc_ready['label'].tolist())
+                selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
+
+                if st.button("✅ 설정 내용 적용"):
+                    net_unit_w = float(selected_row['제품 단중'])
+                    prod_gross_kg = (net_unit_w * qty_in) * (1 + (loss_rate / 100)) if qty_in > 0 else 0
+                    order_gross_kg = (net_unit_w * order_qty_in) * (1 + (loss_rate / 100)) if order_qty_in > 0 else 0
+
+                    if qty_in > 0 or order_qty_in > 0:
+                        st.markdown(f"""
+                        <div class="calc-box">
+                            📋 <b>적용 요약</b> (Loss {loss_rate}%)<br>
+                            - 규격: {selected_row['소재명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})<br>
+                            - 단중: {net_unit_w:.4f} kg<br><hr style='margin:10px 0; border:0; border-top:1px solid rgba(255,255,255,0.2);'>
+                            {"- 🏭 <b>생산 예상 중량</b>: " + f"{prod_gross_kg:,.1f} kg ({prod_gross_kg/1000:,.2f} ton)" if qty_in > 0 else ""}
+                            {f"<br>- (수량: {qty_in:,} EA)" if qty_in > 0 else ""}
+                            {"<br><br>" if qty_in > 0 and order_qty_in > 0 else ""}
+                            {"- 📦 <b>고객 발주 중량</b>: " + f"{order_gross_kg:,.1f} kg ({order_gross_kg/1000:,.2f} ton)" if order_qty_in > 0 else ""}
+                            {f"<br>- (수량: {order_qty_in:,} EA)" if order_qty_in > 0 else ""}
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else: st.warning("수량을 입력해주세요.")
+            else:
+                st.info("💡 검색 결과는 있으나 단중 정보가 입력되지 않은 데이터입니다.")
+            
+            with st.expander("📊 전체 검색 결과 리스트 보기"):
+                st.table(res.astype(str).replace('nan', '-'))
+        else:
+            # 검색 결과가 아예 없을 때 사용자에게 알림
+            st.warning("⚠️ 선택하신 조건(고객사/강종/두께)에 맞는 데이터가 엑셀에 없습니다. 조건을 다시 확인해주세요.")
+            
+    else:
+        st.error("data.xlsx 파일을 찾을 수 없습니다.")
