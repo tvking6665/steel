@@ -41,7 +41,7 @@ if not st.session_state.auth_success:
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-# 4. 데이터 로드 (data.xlsx)
+# 4. 데이터 로드
 @st.cache_data(ttl=600)
 def load_data():
     file_name = "data.xlsx"
@@ -49,16 +49,11 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
-            # [수정] 엑셀의 컬럼명이 '프로젝트명' 혹은 '기타정보및사양'일 때 모두 대응
+            # 프로젝트명/기타정보및사양 통합 인식
             df.rename(columns={
-                '소재명': '강종명', 
-                '두께(T)': '두께', 
-                '폭(W)': '폭', 
-                '제품 단중': '단중', 
-                '기타정보및사양': '프로젝트명',
-                '사양': '프로젝트명'
+                '소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', 
+                '제품 단중': '단중', '기타정보및사양': '프로젝트명'
             }, inplace=True, errors='ignore')
-            
             if '단중' in df.columns:
                 df['단중'] = pd.to_numeric(df['단중'], errors='coerce')
             return df
@@ -70,11 +65,13 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# 완전 초기화 함수
+# --- [수정] 더 강력한 완전 초기화 함수 ---
 def reset_inputs():
+    # 로그인 정보만 빼고 모든 세션 데이터를 삭제
     for key in list(st.session_state.keys()):
         if key != "auth_success":
             del st.session_state[key]
+    # 스트림릿 캐시까지 고려하여 재실행
     st.rerun()
 
 # 연동용 콜백 함수
@@ -104,7 +101,7 @@ with h2:
     st.markdown('<p class="company-name" style="text-align:left; margin-bottom:0;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
     st.markdown('<p class="app-title" style="text-align:left; font-size:18px !important;">원소재 정보 시스템</p>', unsafe_allow_html=True)
 
-# 5. 입력 필터링 (고객사 & 프로젝트명 5:5 배치)
+# 5. 입력 필터링
 r0c1, r0c2 = st.columns(2)
 with r0c1:
     customer_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
@@ -114,10 +111,7 @@ with r0c2:
     project_df = df_raw.copy()
     if selected_customer != '전체':
         project_df = project_df[project_df['고객사'] == selected_customer]
-    
-    # 엑셀에 '프로젝트명' 열이 있는지 확인 후 리스트업
-    p_col = '프로젝트명' if '프로젝트명' in project_df.columns else project_df.columns[-1]
-    project_list = ['전체'] + sorted(project_df[p_col].dropna().unique().tolist())
+    project_list = ['전체'] + sorted(project_df['프로젝트명'].dropna().unique().tolist()) if '프로젝트명' in project_df.columns else ['전체']
     selected_project = st.selectbox("📂 프로젝트명", options=project_list, key="project_box")
 
 res = df_raw.copy()
@@ -157,7 +151,6 @@ else:
     calc_ready = pd.DataFrame()
 
 if not calc_ready.empty:
-    # 라벨에서 프로젝트명을 가장 앞으로 배치
     calc_ready['label'] = calc_ready.apply(
         lambda x: f"[{x['프로젝트명']}] {x['강종명']} ({x['두께']} * {x['폭']}) / 단중: {x['단중']:.4f}", axis=1
     )
@@ -171,14 +164,14 @@ if not calc_ready.empty:
     
     selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
 
+    # 버튼 5:5 배치
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
         apply_btn = st.button("🚀 계산 결과 적용", type="primary", use_container_width=True)
     with btn_col2:
-        reset_btn = st.button("🔄 입력 초기화", use_container_width=True)
-
-    if reset_btn:
-        reset_inputs()
+        # 버튼을 누르면 즉시 reset_inputs 호출
+        if st.button("🔄 입력 초기화", use_container_width=True):
+            reset_inputs()
 
     if apply_btn:
         unit_w = float(selected_row['단중'])
@@ -198,10 +191,4 @@ if not calc_ready.empty:
                 • 단중: <span class="result-value">{unit_w:.4f} kg</span>
             </p>
             <hr style="border: 0.1px solid #444; margin: 8px 0;">
-            <p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA</p>
-            <p class="result-text">📦 <b>발주 중량:</b> <span class="result-value">{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA</p>
-        </div>
-        """
-        st.markdown(summary_html, unsafe_allow_html=True)
-else:
-    st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
+            <p class="result-text">🏭 <b>생산 중량:</b> <span class="result-value">{prod_kg:,.1f} kg</span> ({prod_ton:
