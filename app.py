@@ -97,50 +97,7 @@ if check_login():
         with r1c2: thick_in = st.text_input("두께", placeholder="1.3").strip()
         
         r2c1, r2c2 = st.columns(2)
-        with r2c1: qty_in = st.number_input("수량 (EA)", min_value=0, value=0, step=1000)
-        with r2c2: loss_rate = st.number_input("Loss (%)", min_value=0.0, max_value=50.0, value=3.0, step=0.5)
-
-        res = df.copy()
-        if selected_customer != '전체': res = res[res['고객사'] == selected_customer]
-        if name_in: res = res[res['소재명'].astype(str).str.contains(name_in, case=False, na=False)]
-        if thick_in:
-            t_col_name = next((c for c in res.columns if c in ['두께', '두께(T)', 'T']), '두께')
-            try: res = res[res[t_col_name].astype(float) == float(thick_in)]
-            except: pass
-
-        st.write("") 
-
-        if not res.empty:
-            calc_ready = res.dropna(subset=['제품 단중']).copy()
-            
-            def make_label(x):
-                t = x.get('두께', x.get('두께(T)', x.get('T', '-')))
-                w = x.get('폭', x.get('폭(W)', x.get('W', x.get('소재폭', '-'))))
-                return f"[{x['고객사']}] {x['소재명']} ({t} * {w}) / {x['제품 단중']:.4f}"
-
-            calc_ready['label'] = calc_ready.apply(make_label, axis=1)
-            selected_label = st.selectbox("🎯 상세 규격 선택", options=calc_ready['label'].tolist())
-            selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
-
-            # 조회 결과 박스 삭제 후 바로 버튼 배치
-            if st.button("✅ 설정 내용 적용"):
-                if qty_in > 0:
-                    net_unit_w = float(selected_row['제품 단중'])
-                    total_net_kg = net_unit_w * qty_in
-                    total_gross_kg = total_net_kg * (1 + (loss_rate / 100))
-                    
-                    st.markdown(f"""
-                    <div class="calc-box">
-                        📋 <b>적용 요약</b> (Loss {loss_rate}%)<br>
-                        - 규격: {selected_row['소재명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})<br>
-                        - 단중: {net_unit_w:.4f} kg / 수량: {qty_in:,} EA<br>
-                        - 📦 순수량: {total_net_kg:,.1f} kg<br>
-                        - 🚚 <b>총 구매량: {total_gross_kg:,.1f} kg ({total_gross_kg/1000:,.2f} ton)</b>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else: st.warning("수량을 입력해주세요.")
-
-            with st.expander("📊 상세 데이터 확인"):
-                st.table(res.astype(str).replace('nan', '-'))
-        else:
-            st.warning("데이터가 없습니다.")
+        with r2c1: qty_in = st.number_input("생산 예상수량 (EA)", min_value=0, value=0, step=1000)
+        with r2c2: order_qty_in = st.number_input("발주 수량 (EA)", min_value=0, value=0, step=1000)
+        
+        # Loss율은 가로 전체 너비로 배치 (또는 필요
