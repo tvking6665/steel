@@ -10,13 +10,12 @@ try:
 except:
     st.set_page_config(page_title="원소재 정보 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS 스타일 (폰트 크기 대폭 조정)
+# 2. CSS 스타일
 st.markdown("""
 <style>
     .main .block-container { padding: 0.5rem 0.8rem; }
     .company-name { font-size: 13px; font-weight: bold; color: #0047AB; margin-bottom: 2px; text-align: center; }
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
-    /* 결과창 텍스트 사이즈 조정 */
     .result-text { font-size: 14px !important; line-height: 1.6; }
     .result-value { font-size: 15px !important; font-weight: bold; color: #72ff8d; }
 </style>
@@ -62,20 +61,22 @@ if df_raw is None:
     st.error("data.xlsx 파일을 찾을 수 없습니다.")
     st.stop()
 
-# [핵심] 자동 연동용 콜백 함수 (강종명 + 두께 동시 업데이트)
+# [핵심] 자동 연동용 콜백 함수 (고객사 + 강종명 + 두께 동시 업데이트)
 def on_spec_change():
     if "spec_select" in st.session_state and st.session_state.spec_select:
         try:
-            label = st.session_state.spec_select
-            # 라벨 예시: "[-] SPFH590 (1.8 * 256.0) / 단중: 0.2451"
-            # 1. 강종명 추출
-            target_mat = label.split('] ')[1].split(' (')[0]
-            st.session_state.mat_box = target_mat
+            selected_label = st.session_state.spec_select
+            # 엑셀 원본 데이터에서 해당 라벨과 일치하는 행 찾기
+            # (라벨 구성 방식이 유니크하다고 가정)
+            matched_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
             
-            # 2. 두께 추출
-            target_thick = float(label.split(' (')[1].split(' *')[0])
-            st.session_state.thick_box = target_thick
-        except:
+            # 1. 고객사 연동
+            st.session_state.customer_box = matched_row['고객사']
+            # 2. 강종명 연동
+            st.session_state.mat_box = matched_row['강종명']
+            # 3. 두께 연동
+            st.session_state.thick_box = float(matched_row['두께'])
+        except Exception as e:
             pass
 
 # 헤더
@@ -88,7 +89,8 @@ with h2:
 
 # 5. 입력 필터링
 customer_list = ['전체'] + sorted(df_raw['고객사'].dropna().unique().tolist())
-selected_customer = st.selectbox("🤝 고객사 선택", options=customer_list)
+# 고객사 선택박스에 key="customer_box" 추가
+selected_customer = st.selectbox("🤝 고객사 선택", options=customer_list, key="customer_box")
 
 res = df_raw.copy()
 if selected_customer != '전체':
@@ -100,7 +102,6 @@ with r1c1:
     name_in = st.selectbox("✨ 강종명 선택", options=available_mats, key="mat_box")
 
 with r1c2:
-    # [수정] key="thick_box"를 추가하여 상세 사양 선택 시 연동되도록 함
     thick_in = st.number_input("📏 두께 (T)", value=None, placeholder="", format="%.2f", key="thick_box")
 
 r2c1, r2c2 = st.columns(2)
@@ -110,7 +111,7 @@ loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5)
 
 st.divider()
 
-# 6. 상세 사양 선택
+# 6. 상세 사양 선택 데이터 준비
 filtered_res = res.copy()
 if name_in != "전체":
     filtered_res = filtered_res[filtered_res['강종명'] == name_in]
@@ -143,13 +144,12 @@ if not calc_ready.empty:
         prod_ton = prod_kg / 1000
         order_ton = order_kg / 1000
 
-        # 결과창 폰트 크기 조정 및 가독성 개선
         st.success(f"##### 📋 적용 요약 (Loss {loss_rate}%)")
         
-        # HTML을 사용하여 폰트 크기를 세밀하게 제어
         summary_html = f"""
         <div style="background-color: #1e2630; padding: 12px; border-radius: 8px; border: 1px solid #28a745;">
             <p class="result-text">
+                • 고객사: {selected_row['고객사']}<br>
                 • 사양: {selected_row.get('기타정보및사양','-')}<br>
                 • 규격: {selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})<br>
                 • 단중: <span class="result-value">{unit_w:.4f} kg</span>
