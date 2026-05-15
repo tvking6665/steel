@@ -102,7 +102,6 @@ with r1c2:
 r2c1, r2c2 = st.columns(2)
 with r2c1: qty_in = st.number_input("생산 예상수량 (EA)", min_value=0, value=0, step=1000)
 with r2c2: order_qty_in = st.number_input("발주 수량 (EA)", min_value=0, value=0, step=1000)
-# 오류가 발생했던 부분 (괄호 닫힘 확인)
 loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5)
 
 st.divider()
@@ -138,18 +137,24 @@ if not calc_ready.empty:
         # 정확한 중량 계산 공식
         prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
         order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
+        
+        # TON 단위 계산
+        prod_ton = prod_kg / 1000
+        order_ton = order_kg / 1000
 
-        st.markdown(f"""
+        # 결과 요약 HTML (kg/ton 동시 표기 적용)
+        summary_html = f"""
         <div class="calc-box">
             <b>📋 적용 요약 (Loss {loss_rate}%)</b><br>
             - 사양: <span class="highlight">{selected_row.get('기타정보및사양','-')}</span><br>
             - 규격: <span class="highlight">{selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})</span><br>
             - 단중: <span class="highlight">{unit_w:.4f} kg</span>
-            <hr style="border:0.5px solid #28a745; opacity:0.3;">
-            {'🏭 <b>생산 예상 중량</b>: <span class="highlight">' + f"{prod_kg:,.1f} kg" + '</span> (' + f"{qty_in:,}" + ' EA)<br>' if qty_in > 0 else ""}
-            {'📦 <b>고객 발주 중량</b>: <span class="highlight">' + f"{order_kg:,.1f} kg" + '</span> (' + f"{order_qty_in:,}" + ' EA)' if order_qty_in > 0 else ""}
+            <hr style="border:0.5px solid #28a745; opacity:0.3; margin: 10px 0;">
+            {'🏭 <b>생산 예상 중량</b>: <span class="highlight">' + f"{prod_kg:,.1f} kg" + '</span> (' + f"{prod_ton:,.2f} ton) / ' + f"{qty_in:,}" + ' EA<br>' if qty_in > 0 else ""}
+            {'📦 <b>고객 발주 중량</b>: <span class="highlight">' + f"{order_kg:,.1f} kg" + '</span> (' + f"{order_ton:,.2f} ton) / ' + f"{order_qty_in:,}" + ' EA' if order_qty_in > 0 else ""}
         </div>
-        """, unsafe_allow_html=True)
+        """
+        st.markdown(summary_html, unsafe_allow_html=True)
 else:
     st.warning("단중 정보가 기입된 데이터가 없습니다.")
 
