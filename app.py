@@ -29,7 +29,8 @@ def load_data():
             df.columns = df.columns.str.strip()
             df.rename(columns={
                 '소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', 
-                '제품 단중': '단중', '기타정보및사양': '프로젝트명'
+                '제품 단중': '단중', '기기정보및사양': '프로젝트명',
+                '기타정보및사양': '프로젝트명'
             }, inplace=True, errors='ignore')
             if '단중' in df.columns:
                 df['단중'] = pd.to_numeric(df['단중'], errors='coerce')
@@ -63,26 +64,28 @@ if 'form_version' not in st.session_state:
     st.session_state.form_version = 0
 
 def reset_all():
-    # 위젯 버전 번호를 올려서 모든 위젯을 강제로 새로 생성 (가장 확실한 초기화)
+    # 버전 번호를 올려 UI를 완전히 새로고침
     st.session_state.form_version += 1
-    # 세션에 저장된 모든 연동용 임시 변수 삭제
-    keys_to_del = ['cur_customer', 'cur_project', 'cur_mat', 'cur_thick', 'apply_clicked']
-    for k in keys_to_del:
+    # 세션에 저장된 연동 데이터 삭제
+    for k in ['cur_customer', 'cur_project', 'cur_mat', 'cur_thick', 'apply_clicked']:
         if k in st.session_state:
             del st.session_state[k]
     st.rerun()
 
-# 연동용 콜백 함수
+# [핵심] 자동 연동 복구 콜백
 def on_spec_change():
     v = st.session_state.form_version
     label = st.session_state.get(f"spec_select_{v}")
     if label and label != "선택하세요":
         try:
-            matched_row = df_raw.copy()
-            matched_row['label_temp'] = matched_row.apply(
+            # 원본 데이터에서 라벨과 일치하는 행 찾기
+            temp_df = df_raw.copy()
+            temp_df['label_match'] = temp_df.apply(
                 lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
             )
-            target = matched_row[matched_row['label_temp'] == label].iloc[0]
+            target = temp_df[temp_df['label_match'] == label].iloc[0]
+            
+            # 상단 위젯 연동을 위한 세션 값 업데이트
             st.session_state.cur_customer = target['고객사']
             st.session_state.cur_project = target.get('프로젝트명','전체')
             st.session_state.cur_mat = target['강종명']
@@ -98,7 +101,7 @@ with h2:
     st.markdown('<p class="company-name" style="text-align:left; margin-bottom:0;">Jeon Woo Precision Co., LTD</p>', unsafe_allow_html=True)
     st.markdown('<p class="app-title" style="text-align:left; font-size:18px !important;">원소재 정보 시스템</p>', unsafe_allow_html=True)
 
-# 6. 입력 영역 (form_version을 활용하여 UI 강제 갱신)
+# 6. 입력 영역 (상단 위젯)
 v = st.session_state.form_version
 
 r0c1, r0c2 = st.columns(2)
@@ -120,8 +123,8 @@ with r1c1:
     m_idx = m_list.index(st.session_state.cur_mat) if st.session_state.get('cur_mat') in m_list else 0
     sel_mat = st.selectbox("✨ 강종명 선택", options=m_list, index=m_idx, key=f"m_box_{v}")
 with r1c2:
-    thick_val = st.session_state.get('cur_thick')
-    sel_thick = st.number_input("📏 두께 (T)", value=thick_val, placeholder="", format="%.2f", key=f"t_box_{v}")
+    t_val = st.session_state.get('cur_thick')
+    sel_thick = st.number_input("📏 두께 (T)", value=t_val, placeholder="", format="%.2f", key=f"t_box_{v}")
 
 r2c1, r2c2 = st.columns(2)
 with r2c1: q_prod = st.number_input("생산 예상수량 (EA)", min_value=0, step=1000, key=f"q_p_{v}")
@@ -130,7 +133,7 @@ loss = st.number_input("Loss율 (%)", value=3.0, step=0.5, key=f"loss_{v}")
 
 st.divider()
 
-# 7. 상세 사양 선택
+# 7. 상세 사양 선택 (하단 위젯)
 filtered = res[res['강종명'] == sel_mat] if sel_mat != "전체" else res
 if sel_thick is not None:
     filtered = filtered[filtered['두께'] == sel_thick]
@@ -142,6 +145,7 @@ if not calc_ready.empty:
         lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
     )
     s_options = ["선택하세요"] + calc_ready['label'].tolist()
+    # on_change 콜백을 다시 연결하여 자동 연동 활성화
     st.selectbox("🎯 상세 사양 선택 (단중 기입 항목만 표시)", options=s_options, key=f"spec_select_{v}", on_change=on_spec_change)
     
     b1, b2 = st.columns(2)
@@ -158,12 +162,12 @@ if not calc_ready.empty:
         u_w = float(row['단중'])
         
         res_md = ""
-        # [수정] 생산 예상수량 결과 문구 반영
+        # [요청 반영] 생산 예상수량 결과 문구 수정
         if q_prod > 0:
             p_kg = (u_w * q_prod) * (1 + (loss / 100))
             res_md += f"🏭 **생산 예상수량 결과:** \n #### 구매필요량 : :green[`{p_kg:,.1f} kg`] ({p_kg/1000:,.2f} ton) / 생산필요수량 : `{q_prod:,} EA` \n\n"
         
-        # [수정] 발주 수량 결과 문구 반영
+        # 발주 수량 결과 문구 유지
         if q_order > 0:
             o_kg = (u_w * q_order) * (1 + (loss / 100))
             res_md += f"📦 **발주 수량 결과:** \n #### 구매필요량 : :green[`{o_kg:,.1f} kg`] ({o_kg/1000:,.2f} ton) / 발주량 : `{q_order:,} EA`"
