@@ -45,7 +45,7 @@ if not st.session_state.auth_success:
         else: st.error("정보가 올바르지 않습니다.")
     st.stop()
 
-# 4. 데이터 로드
+# 4. 데이터 로드 (data.xlsx)
 @st.cache_data(ttl=600)
 def load_data():
     file_name = "data.xlsx"
@@ -53,8 +53,8 @@ def load_data():
         try:
             df = pd.read_excel(file_name, engine='openpyxl')
             df.columns = df.columns.str.strip()
+            # 주요 컬럼명 표준화
             df.rename(columns={'소재명': '강종명', '두께(T)': '두께', '폭(W)': '폭', '제품 단중': '단중'}, inplace=True, errors='ignore')
-            # 단중 컬럼 숫자형 변환
             if '단중' in df.columns:
                 df['단중'] = pd.to_numeric(df['단중'], errors='coerce')
             return df
@@ -68,9 +68,8 @@ if df_raw is None:
 
 # 자동 연동용 콜백 함수
 def on_spec_change():
-    if st.session_state.spec_select:
+    if "spec_select" in st.session_state and st.session_state.spec_select:
         try:
-            # "[사양] 강종명 (..." 형식에서 강종명 추출
             target_mat = st.session_state.spec_select.split('] ')[1].split(' (')[0]
             st.session_state.mat_box = target_mat
         except:
@@ -103,4 +102,57 @@ with r1c2:
 r2c1, r2c2 = st.columns(2)
 with r2c1: qty_in = st.number_input("생산 예상수량 (EA)", min_value=0, value=0, step=1000)
 with r2c2: order_qty_in = st.number_input("발주 수량 (EA)", min_value=0, value=0, step=1000)
-loss_rate = st.number_input("Loss율 (%)", value=3.0
+# 오류가 발생했던 부분 (괄호 닫힘 확인)
+loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5)
+
+st.divider()
+
+# 6. 상세 사양 선택 (단중 기입 항목만 표시)
+filtered_res = res.copy()
+if name_in != "전체":
+    filtered_res = filtered_res[filtered_res['강종명'] == name_in]
+if thick_in is not None:
+    filtered_res = filtered_res[filtered_res['두께'] == thick_in]
+
+if '단중' in filtered_res.columns:
+    calc_ready = filtered_res.dropna(subset=['단중']).copy()
+else:
+    calc_ready = pd.DataFrame()
+
+if not calc_ready.empty:
+    calc_ready['label'] = calc_ready.apply(
+        lambda x: f"[{x.get('기타정보및사양','-')}] {x['강종명']} ({x.get('두께','-')} * {x.get('폭','-')}) / 단중: {x['단중']:.4f}", axis=1
+    )
+    
+    selected_label = st.selectbox(
+        "🎯 상세 사양 선택 (단중 기입된 항목만 표시됨)", 
+        options=calc_ready['label'].tolist(), 
+        key="spec_select",
+        on_change=on_spec_change
+    )
+    
+    selected_row = calc_ready[calc_ready['label'] == selected_label].iloc[0]
+
+    if st.button("🚀 계산 결과 적용", type="primary", use_container_width=True):
+        unit_w = float(selected_row['단중'])
+        # 정확한 중량 계산 공식
+        prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
+        order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
+
+        st.markdown(f"""
+        <div class="calc-box">
+            <b>📋 적용 요약 (Loss {loss_rate}%)</b><br>
+            - 사양: <span class="highlight">{selected_row.get('기타정보및사양','-')}</span><br>
+            - 규격: <span class="highlight">{selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})</span><br>
+            - 단중: <span class="highlight">{unit_w:.4f} kg</span>
+            <hr style="border:0.5px solid #28a745; opacity:0.3;">
+            {'🏭 <b>생산 예상 중량</b>: <span class="highlight">' + f"{prod_kg:,.1f} kg" + '</span> (' + f"{qty_in:,}" + ' EA)<br>' if qty_in > 0 else ""}
+            {'📦 <b>고객 발주 중량</b>: <span class="highlight">' + f"{order_kg:,.1f} kg" + '</span> (' + f"{order_qty_in:,}" + ' EA)' if order_qty_in > 0 else ""}
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    st.warning("단중 정보가 기입된 데이터가 없습니다.")
+
+if st.sidebar.button("로그아웃"):
+    st.session_state.auth_success = False
+    st.rerun()
