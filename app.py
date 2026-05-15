@@ -106,7 +106,7 @@ loss_rate = st.number_input("Loss율 (%)", value=3.0, step=0.5)
 
 st.divider()
 
-# 6. 상세 사양 선택 (단중 기입 항목만 표시)
+# 6. 상세 사양 선택
 filtered_res = res.copy()
 if name_in != "전체":
     filtered_res = filtered_res[filtered_res['강종명'] == name_in]
@@ -142,7 +142,16 @@ if not calc_ready.empty:
         prod_ton = prod_kg / 1000
         order_ton = order_kg / 1000
 
-        # 결과 요약 HTML (kg/ton 동시 표기 적용)
+        # 결과 텍스트 구성 (에러 방지를 위해 밖에서 미리 생성)
+        prod_text = ""
+        if qty_in > 0:
+            prod_text = f"🏭 <b>생산 예상 중량</b>: <span class='highlight'>{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA<br>"
+        
+        order_text = ""
+        if order_qty_in > 0:
+            order_text = f"📦 <b>고객 발주 중량</b>: <span class='highlight'>{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
+
+        # 최종 HTML 구성
         summary_html = f"""
         <div class="calc-box">
             <b>📋 적용 요약 (Loss {loss_rate}%)</b><br>
@@ -150,8 +159,8 @@ if not calc_ready.empty:
             - 규격: <span class="highlight">{selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})</span><br>
             - 단중: <span class="highlight">{unit_w:.4f} kg</span>
             <hr style="border:0.5px solid #28a745; opacity:0.3; margin: 10px 0;">
-            {'🏭 <b>생산 예상 중량</b>: <span class="highlight">' + f"{prod_kg:,.1f} kg" + '</span> (' + f"{prod_ton:,.2f} ton) / ' + f"{qty_in:,}" + ' EA<br>' if qty_in > 0 else ""}
-            {'📦 <b>고객 발주 중량</b>: <span class="highlight">' + f"{order_kg:,.1f} kg" + '</span> (' + f"{order_ton:,.2f} ton) / ' + f"{order_qty_in:,}" + ' EA' if order_qty_in > 0 else ""}
+            {prod_text}
+            {order_text}
         </div>
         """
         st.markdown(summary_html, unsafe_allow_html=True)
