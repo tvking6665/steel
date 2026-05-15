@@ -10,18 +10,12 @@ try:
 except:
     st.set_page_config(page_title="원소재 정보 시스템", page_icon="📊", layout="centered")
 
-# 2. CSS 스타일
+# 2. CSS 스타일 (제목 및 로고용)
 st.markdown("""
 <style>
     .main .block-container { padding: 0.5rem 0.8rem; }
     .company-name { font-size: 13px; font-weight: bold; color: #0047AB; margin-bottom: 2px; text-align: center; }
     .app-title { font-size: 18px !important; font-weight: 800; text-align: center; margin-bottom: 15px; }
-    .calc-box {
-        background-color: rgba(40, 167, 69, 0.05); border: 1px solid #28a745;
-        padding: 15px; border-radius: 10px; color: #ffffff;
-        font-size: 15px; margin-top: 10px; line-height: 1.6;
-    }
-    .highlight { color: #72ff8d; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -70,6 +64,7 @@ if df_raw is None:
 def on_spec_change():
     if "spec_select" in st.session_state and st.session_state.spec_select:
         try:
+            # "[사양] 강종명 (..." 형식에서 강종명만 추출
             target_mat = st.session_state.spec_select.split('] ')[1].split(' (')[0]
             st.session_state.mat_box = target_mat
         except:
@@ -124,7 +119,7 @@ if not calc_ready.empty:
     )
     
     selected_label = st.selectbox(
-        "🎯 상세 사양 선택 (단중 기입된 항목만 표시됨)", 
+        "🎯 상세 사양 선택 (단중 기입 항목만 표시)", 
         options=calc_ready['label'].tolist(), 
         key="spec_select",
         on_change=on_spec_change
@@ -142,28 +137,22 @@ if not calc_ready.empty:
         prod_ton = prod_kg / 1000
         order_ton = order_kg / 1000
 
-        # 결과 텍스트 구성 (에러 방지를 위해 밖에서 미리 생성)
-        prod_text = ""
-        if qty_in > 0:
-            prod_text = f"🏭 <b>생산 예상 중량</b>: <span class='highlight'>{prod_kg:,.1f} kg</span> ({prod_ton:,.2f} ton) / {qty_in:,} EA<br>"
+        # 결과 요약 (디자인 유지 및 HTML 태그 오류 해결을 위해 마크다운 방식 사용)
+        st.success(f"### 📋 적용 요약 (Loss {loss_rate}%)")
         
-        order_text = ""
+        summary_md = f"""
+**- 사양:** {selected_row.get('기타정보및사양','-')}
+**- 규격:** {selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})
+**- 단중:** {unit_w:.4f} kg
+---
+"""
+        if qty_in > 0:
+            summary_md += f"🏭 **생산 예상 중량:** `{prod_kg:,.1f} kg` ({prod_ton:,.2f} ton) / {qty_in:,} EA  \n"
+        
         if order_qty_in > 0:
-            order_text = f"📦 <b>고객 발주 중량</b>: <span class='highlight'>{order_kg:,.1f} kg</span> ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
+            summary_md += f"📦 **고객 발주 중량:** `{order_kg:,.1f} kg` ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
 
-        # 최종 HTML 구성
-        summary_html = f"""
-        <div class="calc-box">
-            <b>📋 적용 요약 (Loss {loss_rate}%)</b><br>
-            - 사양: <span class="highlight">{selected_row.get('기타정보및사양','-')}</span><br>
-            - 규격: <span class="highlight">{selected_row['강종명']} ({selected_row.get('두께','-')} * {selected_row.get('폭','-')})</span><br>
-            - 단중: <span class="highlight">{unit_w:.4f} kg</span>
-            <hr style="border:0.5px solid #28a745; opacity:0.3; margin: 10px 0;">
-            {prod_text}
-            {order_text}
-        </div>
-        """
-        st.markdown(summary_html, unsafe_allow_html=True)
+        st.info(summary_md)
 else:
     st.warning("단중 정보가 기입된 데이터가 없습니다.")
 
