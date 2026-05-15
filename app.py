@@ -162,7 +162,26 @@ if not calc_ready.empty:
     if apply_btn:
         unit_w = float(selected_row['단중'])
         
-        # 결과 텍스트 구성 (마크다운 활용)
+        # 1. 상단 형광색 바 (계산 결과값 배치)
+        result_title = "📊 계산 결과"
+        result_md = ""
+        
+        if qty_in > 0:
+            prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
+            prod_ton = prod_kg / 1000
+            result_md += f"🏭 **생산 예상수량 결과:** \n #### `{prod_kg:,.1f} kg` ({prod_ton:,.2f} ton) / {qty_in:,} EA  \n\n"
+
+        if order_qty_in > 0:
+            order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
+            order_ton = order_kg / 1000
+            result_md += f"📦 **발주 수량 결과:** \n #### `{order_kg:,.1f} kg` ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
+        
+        if qty_in == 0 and order_qty_in == 0:
+            result_md = "⚠️ 수량을 입력해주세요."
+
+        st.success(result_md) # 형광색 바탕(초록 바)으로 결과 먼저 표시
+
+        # 2. 하단 파란색 박스 (상세 정보 배치)
         info_md = f"""
 ### 📋 상세 정보
 - **고객사:** {selected_row['고객사']}
@@ -170,27 +189,8 @@ if not calc_ready.empty:
 - **규격:** {selected_row['강종명']} ({selected_row['두께']} * {selected_row['폭']})
 - **단중:** `{unit_w:.4f} kg`
 - **※ 적용 요약 (LOSS {loss_rate}%)**
----
 """
-        # 생산 예상수량 결과
-        if qty_in > 0:
-            prod_kg = (unit_w * qty_in) * (1 + (loss_rate / 100))
-            prod_ton = prod_kg / 1000
-            info_md += f"🏭 **생산 예상수량 결과:** \n"
-            info_md += f"#### :green[`{prod_kg:,.1f} kg`] ({prod_ton:,.2f} ton) / {qty_in:,} EA  \n\n"
-
-        # 발주 수량 결과
-        if order_qty_in > 0:
-            order_kg = (unit_w * order_qty_in) * (1 + (loss_rate / 100))
-            order_ton = order_kg / 1000
-            info_md += f"📦 **발주 수량 결과:** \n"
-            info_md += f"#### :green[`{order_kg:,.1f} kg`] ({order_ton:,.2f} ton) / {order_qty_in:,} EA"
-        
-        if qty_in == 0 and order_qty_in == 0:
-            info_md += "⚠️ 수량을 입력해주세요."
-
-        # 하나의 박스 안에 모든 정보 표시
-        st.info(info_md)
+        st.info(info_md) # 상세 정보를 아래로 내림
 else:
     st.warning("선택 조건에 맞는 데이터가 없거나 단중 정보가 비어있습니다.")
 
