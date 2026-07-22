@@ -10,7 +10,7 @@ try:
 except:
     st.set_page_config(page_title="전우정밀 시스템", page_icon="📊", layout="centered")
 
-# 2. [phone82 모던 다크 테마] 커스텀 CSS 적용
+# 2. 커스텀 CSS 적용
 st.markdown("""
 <style>
     /* 전체 배경 및 폰트 설정 */
@@ -53,15 +53,6 @@ st.markdown("""
         font-size: 13px;
         color: #94A3B8;
         margin: 0;
-    }
-
-    /* 섹션 감싸기 카드 */
-    .content-card {
-        background-color: #1E293B;
-        border: 1px solid #334155;
-        border-radius: 14px;
-        padding: 20px;
-        margin-bottom: 20px;
     }
 
     /* 라벨 및 위젯 디자인 커스텀 */
@@ -126,7 +117,7 @@ def load_data():
 
 df_raw = load_data()
 
-# 4. 로그인 로직 (phone82 카드 스타일 적용)
+# 4. 로그인 로직
 if "auth_success" not in st.session_state:
     st.session_state.auth_success = False
 
@@ -183,7 +174,6 @@ if df_raw is not None:
 
     sel_t = st.number_input("📏 두께(T)", value=None, format="%.2f", key=f"t{v}")
 
-    # 수량 및 Loss율 입력 영역 (2열 레이아웃 배치로 깔끔하게 정렬)
     col1, col2 = st.columns(2)
     with col1:
         qp = st.number_input("🏭 생산수량(EA)", min_value=0, step=1000, key=f"qp{v}")
@@ -205,7 +195,12 @@ if df_raw is not None:
     calc = f_df.dropna(subset=['단중']).copy()
 
     if not calc.empty:
-        calc['label'] = calc.apply(lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} {x['두께']}T", axis=1)
+        # 단중 표기를 추가한 드롭다운 라벨 생성
+        calc['label'] = calc.apply(
+            lambda x: f"[{x.get('프로젝트명','-')}] {x['강종명']} {x['두께']}T / {x['단중']:.3f}g", 
+            axis=1
+        )
+        
         sel_s = st.selectbox("🎯 상세 사양 선택", ["선택하세요"] + calc['label'].tolist(), key=f"s{v}")
         
         if st.button("🚀 소요량 계산 결과 확인", type="primary", use_container_width=True):
